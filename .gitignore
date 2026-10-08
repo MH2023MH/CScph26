@@ -8,3 +8,6 @@ appsettings.Production.json
 *.pfx
 agent.db*
 publish/
+# Resultados de la línea base (Fase 1): contienen cuentas, IP y rutas del servidor. Nunca a git.
+baseline-*/
+baseline-*.zip

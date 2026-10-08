@@ -257,7 +257,7 @@ Cada fase tiene un **tipo**, un **criterio de salida** verificable y sus **depen
 | Fase | Estado | Qué falta |
 |---|---|---|
 | 0 | Decisiones cerradas (servicio, carpeta, lista blanca provisional, canal, alcance) | Lista blanca definitiva (IPs de administración, Cloudflare), destinatarios |
-| 1 | **Pendiente — compuerta** | Acceso administrador a srv-copahue2; CIS-CAT; edición de Windows/SQL |
+| 1 | **En curso — compuerta** (guía y script en `docs/linea-base/` y `deploy/baseline/`) | Ejecutar el inventario y CIS-CAT/Policy Analyzer en el servidor; informe de brechas revisado |
 | 2–6 | Hechas y probadas (CI en verde) | — |
 | 7 | Código hecho y probado; **scripts de despliegue sin probar en Windows** | VM de prueba para `deploy/`; destino de logs externos; decisión de privilegios para bloquear |
 | 8 | **Pendiente — compuerta** | Servidor, credenciales SMTP/Teams, Sysmon, ventana de instalación |
