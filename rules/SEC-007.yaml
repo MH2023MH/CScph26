@@ -1,0 +1,55 @@
+id: SEC-007
+nombre: Firmas de ataque y escaneo en logs IIS
+modo: observe
+fuente: iis
+condicion:
+  event_id: http.request
+  agrupar_por: ip_origen
+  umbral: 3
+  ventana: 5m
+  filtros:
+    - campo: texto
+      contiene:
+        # recorrido de directorios
+        - "../"
+        - "..\\"
+        - "%2e%2e"
+        - "..%2f"
+        - "..%5c"
+        # inyección SQL / XSS / ejecución
+        - "union select"
+        - "union+select"
+        - "' or "
+        - "'+or+"
+        - "%27+or"
+        - "xp_cmdshell"
+        - "<script"
+        - "%3cscript"
+        - "cmd.exe"
+        # archivos y rutas sensibles / de otras plataformas
+        - "/etc/passwd"
+        - "win.ini"
+        - "boot.ini"
+        - "/.env"
+        - "/.git/"
+        - "wp-login.php"
+        - "wp-admin"
+        - "phpmyadmin"
+        # herramientas de escaneo (User-Agent)
+        - "sqlmap"
+        - "nikto"
+        - "nmap"
+        - "masscan"
+        - "wpscan"
+        - "dirbuster"
+        - "gobuster"
+        - "acunetix"
+        - "nessus"
+        - "zgrab"
+severidad: alta
+excluir: [lista_blanca]
+respuesta:
+  accion: firewall.block_ip
+  duracion: 1h
+  notificar: [correo, teams]
+runbook: runbooks/SEC-007-ataques-en-iis.md

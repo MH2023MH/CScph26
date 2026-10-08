@@ -1,0 +1,14 @@
+id: SEC-004
+nombre: Servicio o tarea programada nueva
+modo: observe
+fuente: [eventlog.system, eventlog.security]
+condicion:
+  event_id: [7045, 4698]      # 7045 = servicio instalado (System); 4698 = tarea programada creada (Security)
+  agrupar_por: ninguno
+  umbral: 1
+  ventana: 1m
+severidad: media
+respuesta:
+  accion: notify
+  notificar: [correo, teams]
+runbook: runbooks/SEC-004-servicio-o-tarea-nueva.md

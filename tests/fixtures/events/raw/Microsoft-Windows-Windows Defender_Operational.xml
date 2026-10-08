@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Events>
+  <Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+    <System>
+      <Provider Name="Microsoft-Windows-Windows Defender" Guid="{11CD958A-C507-4EF3-B3F2-5FD9DFBD2C78}" />
+      <EventID>1116</EventID>
+      <Version>0</Version>
+      <Level>3</Level>
+      <TimeCreated SystemTime="2026-10-08T10:00:00.0000000Z" />
+      <EventRecordID>7001</EventRecordID>
+      <Execution ProcessID="632" ThreadID="1234" />
+      <Channel>Microsoft-Windows-Windows Defender/Operational</Channel>
+      <Computer>srv-copahue2</Computer>
+    </System>
+    <EventData><Data Name="Product Name">Microsoft Defender Antivirus</Data><Data Name="Threat Name">Trojan:Win32/Test</Data><Data Name="Severity Name">Severe</Data><Data Name="Path">file:_C:\Users\Public\evil.exe</Data><Data Name="Detection User">SRV-COPAHUE2\bob</Data></EventData>
+  </Event>
+  <Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+    <System>
+      <Provider Name="Microsoft-Windows-Windows Defender" Guid="{11CD958A-C507-4EF3-B3F2-5FD9DFBD2C78}" />
+      <EventID>5001</EventID>
+      <Version>0</Version>
+      <Level>3</Level>
+      <TimeCreated SystemTime="2026-10-08T10:05:00.0000000Z" />
+      <EventRecordID>7002</EventRecordID>
+      <Execution ProcessID="632" ThreadID="1234" />
+      <Channel>Microsoft-Windows-Windows Defender/Operational</Channel>
+      <Computer>srv-copahue2</Computer>
+    </System>
+    <EventData><Data Name="Product Name">Microsoft Defender Antivirus</Data><Data Name="Product Version">4.18.2</Data></EventData>
+  </Event>
+  <Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+    <System>
+      <Provider Name="Microsoft-Windows-Windows Defender" Guid="{11CD958A-C507-4EF3-B3F2-5FD9DFBD2C78}" />
+      <EventID>2000</EventID>
+      <Version>0</Version>
+      <Level>4</Level>
+      <TimeCreated SystemTime="2026-10-08T10:10:00.0000000Z" />
+      <EventRecordID>7003</EventRecordID>
+      <Execution ProcessID="632" ThreadID="1234" />
+      <Channel>Microsoft-Windows-Windows Defender/Operational</Channel>
+      <Computer>srv-copahue2</Computer>
+    </System>
+    <EventData><Data Name="Product Name">Microsoft Defender Antivirus</Data><Data Name="Current Signature Version">1.1.1</Data></EventData>
+  </Event>
+</Events>

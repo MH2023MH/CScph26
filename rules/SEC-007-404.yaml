@@ -1,0 +1,19 @@
+id: SEC-007-404
+nombre: Ráfaga de 404 desde una misma IP (escaneo de rutas)
+modo: observe
+fuente: iis
+condicion:
+  event_id: http.request
+  agrupar_por: ip_origen
+  umbral: 30
+  ventana: 2m
+  filtros:
+    - campo: detalle
+      regex: '^\S+ 404 '        # detalle = "<método> <estado> <user-agent>"
+severidad: media
+excluir: [lista_blanca]
+respuesta:
+  accion: firewall.block_ip
+  duracion: 1h
+  notificar: [correo]
+runbook: runbooks/SEC-007-ataques-en-iis.md

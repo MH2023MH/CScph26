@@ -1,0 +1,16 @@
+{
+  "descripcion": "Eventos simulados del Event Log Security. IPs externas en rangos de documentacion (RFC 5737); 192.168.x.x representa la red interna.",
+  "eventos": [
+    { "id": "SIM-4625-001", "event_id": 4625, "tiempo": "2026-10-08T03:10:01Z", "usuario": "administrator", "ip_origen": "203.0.113.50", "nota": "fallo de logon RDP, parte de rafaga SEC-001" },
+    { "id": "SIM-4625-002", "event_id": 4625, "tiempo": "2026-10-08T03:10:03Z", "usuario": "admin", "ip_origen": "203.0.113.50" },
+    { "id": "SIM-4625-003", "event_id": 4625, "tiempo": "2026-10-08T03:10:05Z", "usuario": "sa", "ip_origen": "203.0.113.50" },
+    { "id": "SIM-4625-004", "event_id": 4625, "tiempo": "2026-10-08T03:10:07Z", "usuario": "user1", "ip_origen": "203.0.113.50" },
+    { "id": "SIM-4625-005", "event_id": 4625, "tiempo": "2026-10-08T03:10:09Z", "usuario": "user2", "ip_origen": "203.0.113.50" },
+    { "id": "SIM-4625-006", "event_id": 4625, "tiempo": "2026-10-08T03:10:11Z", "usuario": "test", "ip_origen": "203.0.113.50" },
+    { "id": "SIM-4625-007", "event_id": 4625, "tiempo": "2026-10-08T03:10:13Z", "usuario": "guest", "ip_origen": "203.0.113.50" },
+    { "id": "SIM-4625-008", "event_id": 4625, "tiempo": "2026-10-08T03:10:15Z", "usuario": "backup", "ip_origen": "203.0.113.50" },
+    { "id": "SIM-4625-009", "event_id": 4625, "tiempo": "2026-10-08T09:00:00Z", "usuario": "mhinojosa", "ip_origen": "192.168.1.25", "nota": "fallo aislado desde red interna: no debe disparar ni bloquear" },
+    { "id": "SIM-4720-001", "event_id": 4720, "tiempo": "2026-10-08T04:00:00Z", "usuario": "svc_tmp$", "actor": "SYSTEM", "nota": "cuenta local creada (SEC-003)" },
+    { "id": "SIM-4732-001", "event_id": 4732, "tiempo": "2026-10-08T04:00:30Z", "usuario": "svc_tmp$", "grupo": "Administrators", "actor": "SYSTEM", "nota": "agregada a grupo privilegiado (SEC-003)" }
+  ]
+}

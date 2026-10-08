@@ -1,0 +1,6 @@
+{
+  "StatusApi": { "BaseUrl": "http://192.168.X.X:8750", "Token": "CAMBIAR-por-el-token-de-la-API-de-estado" },
+  "Model": { "Endpoint": "http://localhost:11434", "Name": "CAMBIAR-por-el-modelo-elegido-segun-el-hardware", "Temperature": 0 },
+  "Redaction": { "MaskIps": false, "PseudonymizeUsers": false },
+  "Advisor": { "MaxSteps": 6, "MaxToolCalls": 10 }
+}

@@ -1,0 +1,28 @@
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: dotnet restore CScph26.sln
+      - run: dotnet build CScph26.sln --no-restore -c Release
+      - run: dotnet test CScph26.sln --no-build -c Release --verbosity normal
+  publish-win-x64:
+    needs: build-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: dotnet publish src/SecurityAgent.Worker -c Release -r win-x64 --self-contained false -o publish
+      - uses: actions/upload-artifact@v4
+        with:
+          name: securityagent-win-x64
+          path: publish

@@ -1,7 +1,7 @@
-# C_Security_agent — Agente local de seguridad para srv-copahue2
+# CScph26 — Agente local de seguridad para srv-copahue2
 
 > Documento base del proyecto. Describe qué es, qué hace, cómo se diseña y en qué orden se
-> construye. Estado: **Fase 0 (diseño)** — todavía no hay código. Creado 2026-10-08.
+> construye. Estado: **todas las fases autónomas (2–7, 9, 11, 12) completadas en código**; quedan las compuertas humanas 1, 8, 10 y las pendientes de la 7 y la 11 (ver «Estado actual» en §9). Creado 2026-10-08.
 > Revisado 2026-10-08: el proyecto pasa a ser un **sistema doble** (monitor autónomo + agente IA de consulta).
 
 ---
@@ -137,15 +137,15 @@ Todas inician en `observe`.
 | ID | Detección | Fuente | Respuesta (cuando pase a enforce) |
 |---|---|---|---|
 | SEC-001 | Fuerza bruta RDP (N logins fallidos 4625 por IP en X min) | Event Log Security | Bloqueo temporal de la IP |
-| SEC-002 | Fuerza bruta SQL (logins fallidos repetidos) | ERRORLOG SQL | Alerta; bloqueo de IP si es externa |
+| SEC-002 | Fuerza bruta SQL (≥4 logins fallidos en 5 min por IP) | ERRORLOG SQL | Alerta; bloqueo de IP si es externa |
 | SEC-003 | Cuenta local/administrador creada o agregada a grupo privilegiado (4720, 4732) | Event Log Security | Alerta crítica |
 | SEC-004 | Servicio o tarea programada nueva (7045, 4698) | System / Security | Alerta |
 | SEC-005 | App Pool detenido o en bucle de reinicios | Event Log / IIS | Alerta |
 | SEC-006 | Cambio en `web.config`, `appsettings.*` o binarios de `D:\Apps\*` fuera de ventana de deploy | FileSystemWatcher | Alerta crítica |
-| SEC-007 | Patrones de ataque en logs IIS (escaneo, 404 masivos, `../`, inyección) | Logs IIS | Bloqueo temporal de la IP |
+| SEC-007 | Patrones de ataque en logs IIS (escaneo, `../`, inyección; variante SEC-007-404 para ráfagas de 404) | Logs IIS | Bloqueo temporal de la IP |
 | SEC-008 | Defender detecta malware o se desactiva | Eventos de Defender | Alerta crítica |
 | SEC-009 | Certificado por vencer / backup sin ejecutar | Scheduler | Alerta |
-| SEC-010 | Proceso sospechoso (Sysmon: PowerShell codificado, procesos desde `Temp`) | Sysmon | Alerta |
+| SEC-010 | Proceso sospechoso (Sysmon: PowerShell codificado; variante SEC-010-TEMP para procesos desde `Temp`) | Sysmon | Alerta |
 
 El catálogo crecerá; cada regla debe tener su runbook (§6).
 
@@ -207,20 +207,23 @@ Planes transversales a redactar:
 ## 8. Estructura prevista del repositorio
 
 ```
-C_Security_agent/
+CScph26/
+├── CScph26.sln
 ├── CLAUDE.md                 (este documento)
 ├── src/
 │   ├── SecurityAgent.Worker/ Servicio .NET 8 (host del sistema 1)
 │   ├── SecurityAgent.Core/   Modelo de eventos, motor de reglas, estado
 │   ├── SecurityAgent.Collectors/
 │   ├── SecurityAgent.Responders/
-│   ├── SecurityAgent.StatusApi/  API de estado de solo lectura (contrato compartido)
+│   ├── SecurityAgent.StatusApi/      Servidor de la API de estado de solo lectura
+│   ├── SecurityAgent.StatusContract/ Contrato compartido (DTOs, sin dependencias); es lo único que ve el advisor
 │   └── SecurityAdvisor/      Sistema 2: agente IA, herramientas de lectura, interfaz de consulta
 ├── rules/                    Reglas YAML + allowlist.yaml
 ├── runbooks/                 Un runbook por regla/escenario
 ├── deploy/                   Instalación del servicio, permisos, firewall, Sysmon config, despliegue del advisor
-├── docs/                     Decisiones de diseño, línea base CIS, contrato de la API de estado
-└── tests/                    Motor de reglas con eventos simulados; pruebas de inyección y de respuestas del advisor
+├── docs/                     Contrato de la API de estado (api-estado.md) y planes transversales (planes/)
+├── .github/workflows/ci.yml  CI: compilar y probar
+└── tests/                    Banco de eventos simulados (tests/fixtures/events); motor de reglas con eventos simulados; pruebas de inyección y de respuestas del advisor
 ```
 
 ---
@@ -249,6 +252,19 @@ Cada fase tiene un **tipo**, un **criterio de salida** verificable y sus **depen
 | 12 | Endurecimiento del sistema 2: pruebas de inyección de prompts con logs hostiles simulados, evaluación de calidad, verificación de latido | Autónoma | Un conjunto de logs hostiles no consigue que el modelo ignore sus reglas ni invoque algo fuera de la lista de consultas; evaluación de respuestas por encima del umbral acordado | 11 |
 | 13 (opcional) | Resúmenes proactivos diarios/semanales; dashboard local de solo lectura; evaluar Wazuh si crece la infraestructura | Opcional | A definir si se decide hacerlo | 8, 11 |
 
+### Estado actual (2026-10-08)
+
+| Fase | Estado | Qué falta |
+|---|---|---|
+| 0 | Decisiones cerradas (servicio, carpeta, lista blanca provisional, canal, alcance) | Lista blanca definitiva (IPs de administración, Cloudflare), destinatarios |
+| 1 | **Pendiente — compuerta** | Acceso administrador a srv-copahue2; CIS-CAT; edición de Windows/SQL |
+| 2–6 | Hechas y probadas (CI en verde) | — |
+| 7 | Código hecho y probado; **scripts de despliegue sin probar en Windows** | VM de prueba para `deploy/`; destino de logs externos; decisión de privilegios para bloquear |
+| 8 | **Pendiente — compuerta** | Servidor, credenciales SMTP/Teams, Sysmon, ventana de instalación |
+| 9 | Hecha en código y pruebas; validación real depende de la Fase 8 | Ventanas de deploy, ubicación de respaldos, IDs de Defender con datos reales |
+| 10 | **Pendiente — compuerta** (nunca automática) | Observación, informe de falsos positivos, aprobación por regla (`--set-mode`) |
+| 11–12 | Hechas y probadas contra la API real con un modelo simulado | Equipo y modelo reales; ejecutar `--eval` con el modelo y fijar el umbral de calidad |
+
 ### Lectura del plan
 
 - **Cadena autónoma 2 → 3 → 4 → 5 → 6:** todo el núcleo del sistema 1 se construye y prueba sin tocar el servidor.
@@ -275,13 +291,18 @@ Cada fase tiene un **tipo**, un **criterio de salida** verificable y sus **depen
 
 - [ ] ¿Hay una VM/equipo aparte para enviar los logs fuera del servidor? (define el destino de los logs externos y si Wazuh es viable más adelante)
 - [ ] Edición de Windows Server y de SQL Server (afecta qué auditorías nativas están disponibles).
-- [ ] Canal de alertas preferido: correo, Teams o ambos, y quién las recibe.
-- [ ] Lista blanca inicial: rangos de la red interna, IPs de administración, rangos de Cloudflare.
-- [ ] ¿El agente corre solo en srv-copahue2 o debe poder instalarse en otros servidores?
-- [ ] Nombre definitivo del servicio y carpeta de despliegue (propuesta: `D:\Apps\SecurityAgent`).
+- [x] **Canal de alertas (decidido 2026-10-08):** correo y Teams; si ambos no son posibles o dan problemas, solo correo como canal principal. Destinatarios: pendiente (antes de Fase 8).
+- [x] **Lista blanca inicial (decidido 2026-10-08, provisional):** red interna `192.168.0.0/16` (rango general, se ajustará). Pendiente: IPs de administración y rangos de Cloudflare (`rules/allowlist.yaml`).
+- [x] **Alcance (decidido 2026-10-08):** por ahora solo srv-copahue2.
+- [x] **Servicio y carpeta (decidido 2026-10-08):** servicio `SecurityAgent`, carpeta `D:\Apps\SecurityAgent`. Repositorio y solución: `CScph26`.
 - [ ] Ventanas de deploy conocidas, para no alertar SEC-006 durante despliegues legítimos.
 - [x] **Sistema 2 — ubicación (decidido 2026-10-08):** el modelo corre en un **equipo propio dedicado** (físico o VM), separado de srv-copahue2, con **recursos abundantes** asignados. No compite con las apps del servidor.
 - [ ] **Sistema 2 — hardware (pendiente de especificar):** el detalle (RAM, GPU/VRAM, CPU, disco) no está definido aún, pero se asume holgado. Al fijarlo se elige el tamaño del modelo; con recursos amplios ya no se está limitado a modelos de 7–8B. Decidir también si el equipo es físico o VM (una VM con GPU en passthrough exige verificar soporte del hipervisor).
 - [ ] **Sistema 2 — modelo local vs. API de pago:** con hardware propio y abundante, se prioriza modelo local (los datos no salen); la API de pago queda solo como alternativa con filtrado previo.
 - [ ] **Sistema 2:** interfaz de consulta preferida (consola, página local de chat o Teams) y quién puede consultar.
 - [ ] **Sistema 2:** ¿qué datos nunca deben llegar al modelo (usuarios, IPs internas, rutas)? Define el saneado de la API de estado.
+- [ ] **Respaldos a vigilar (SEC-009):** ¿cómo y dónde se respaldan SQL Server y `D:\Apps`? Hace falta carpeta, patrón de archivo y antigüedad máxima de cada respaldo (`Audits:Backups:Targets`). Mientras no se configure, la auditoría informa `sin_configurar`.
+- [ ] **Registro de la IP real tras Cloudflare Tunnel (SEC-007):** configurar en IIS el campo personalizado `CF-Connecting-IP`; sin él las reglas de IIS ven la IP local del túnel y no pueden atribuir ni bloquear al atacante. Además, el bloqueo en Windows Firewall no frena tráfico que entra por el túnel: valorar reglas en Cloudflare WAF.
+- [ ] **Privilegios para bloquear (antes de cualquier `enforce`):** la cuenta virtual de mínimos privilegios no puede crear reglas de firewall. Decidir entre un ayudante privilegiado mínimo o una cuenta con permisos de firewall (ver `deploy/README.md`).
+- [ ] **Datos de contacto de escalamiento** para `docs/planes/respuesta-a-incidentes.md` (nombres y teléfonos).
+- [ ] **Confirmar con datos reales (Fase 8):** IDs de eventos de Defender de SEC-008 (1116, 1119, 5001, 5010, 5012), configuración de Sysmon (depende de su versión) y que `auditpol` reporta correctamente la auditoría de 4625.

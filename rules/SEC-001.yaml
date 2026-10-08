@@ -1,0 +1,16 @@
+id: SEC-001
+nombre: Fuerza bruta RDP
+modo: observe
+fuente: eventlog.security
+condicion:
+  event_id: 4625
+  agrupar_por: ip_origen
+  umbral: 8
+  ventana: 5m
+severidad: alta
+excluir: [lista_blanca]
+respuesta:
+  accion: firewall.block_ip
+  duracion: 1h
+  notificar: [correo, teams]
+runbook: runbooks/SEC-001-fuerza-bruta-rdp.md

@@ -1,0 +1,16 @@
+id: SEC-002
+nombre: Fuerza bruta SQL Server
+modo: observe
+fuente: sql
+condicion:
+  event_id: login.failed
+  agrupar_por: ip_origen
+  umbral: 4
+  ventana: 5m
+severidad: alta
+excluir: [lista_blanca]
+respuesta:
+  accion: firewall.block_ip
+  duracion: 1h
+  notificar: [correo, teams]
+runbook: runbooks/SEC-002-fuerza-bruta-sql.md

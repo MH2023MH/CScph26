@@ -1,0 +1,11 @@
+# Ventanas de deploy conocidas (decisión abierta de §10). Los cambios de archivos dentro de una ventana NO disparan SEC-006.
+# Mientras la lista esté vacía, cualquier cambio en D:\Apps alerta.
+# zona_horaria: "Pacific SA Standard Time"   # opcional; por defecto la zona del servidor
+recurrentes: []
+#  - dias: [mar, jue]          # lun mar mie jue vie sab dom
+#    desde: "22:00"
+#    hasta: "23:30"            # si hasta <= desde cruza la medianoche
+puntuales: []
+#  - desde: "2026-10-10T22:00:00-03:00"
+#    hasta: "2026-10-10T23:30:00-03:00"
+#    motivo: "Deploy de la versión X"

@@ -1,0 +1,10 @@
+bin/
+obj/
+*.user
+.vs/
+TestResults/
+# Secretos (principio 9)
+appsettings.Production.json
+*.pfx
+agent.db*
+publish/
