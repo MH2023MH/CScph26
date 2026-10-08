@@ -8,6 +8,16 @@ public enum RuleMode { Observe, Enforce }
 /// <summary>Bloqueo de IP con expiración obligatoria (principio 3).</summary>
 public sealed record BlockEntry(string Ip, string RuleId, string Reason, DateTimeOffset CreatedAt, DateTimeOffset ExpiresAt);
 
+public static class AuditKinds
+{
+    public const string Hardening = "hardening";
+    public const string Certificates = "certificates";
+    public const string Backups = "backups";
+}
+
+/// <summary>Resultado de una auditoría periódica (la escribe el Scheduler; la API de estado la lee).</summary>
+public sealed record AuditEntry(string Kind, string Status, DateTimeOffset CheckedAt, string Summary);
+
 public sealed record PurgeResult(int EventsDeleted, int BlocksDeleted);
 
 public interface IStateStore
@@ -25,6 +35,9 @@ public interface IStateStore
     void AddAlert(Alert alert);
     Alert? GetAlert(string id);
     IReadOnlyList<Alert> ListAlerts(DateTimeOffset? since = null, string? ruleId = null, Severity? minSeverity = null, int limit = 100);
+
+    void SetAudit(AuditEntry audit);
+    AuditEntry? GetAudit(string kind);
 
     /// <summary>Las reglas sin estado guardado arrancan en Observe (principio 1).</summary>
     RuleMode GetRuleMode(string ruleId);

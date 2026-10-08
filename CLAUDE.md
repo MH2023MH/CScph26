@@ -1,7 +1,7 @@
 # CScph26 — Agente local de seguridad para srv-copahue2
 
 > Documento base del proyecto. Describe qué es, qué hace, cómo se diseña y en qué orden se
-> construye. Estado: **Fase 4 completada** (motor de reglas, lista blanca, modos observe/enforce, responders con rollback). Siguiente: Fase 5 (notificaciones y API de estado). Creado 2026-10-08.
+> construye. Estado: **Fase 5 completada** (notificaciones y API de estado de solo lectura). Siguiente: Fase 6 (collectors). Creado 2026-10-08.
 > Revisado 2026-10-08: el proyecto pasa a ser un **sistema doble** (monitor autónomo + agente IA de consulta).
 
 ---
@@ -215,7 +215,8 @@ CScph26/
 │   ├── SecurityAgent.Core/   Modelo de eventos, motor de reglas, estado
 │   ├── SecurityAgent.Collectors/
 │   ├── SecurityAgent.Responders/
-│   ├── SecurityAgent.StatusApi/  API de estado de solo lectura (contrato compartido)
+│   ├── SecurityAgent.StatusApi/      Servidor de la API de estado de solo lectura
+│   ├── SecurityAgent.StatusContract/ Contrato compartido (DTOs, sin dependencias); es lo único que ve el advisor
 │   └── SecurityAdvisor/      Sistema 2: agente IA, herramientas de lectura, interfaz de consulta
 ├── rules/                    Reglas YAML + allowlist.yaml
 ├── runbooks/                 Un runbook por regla/escenario

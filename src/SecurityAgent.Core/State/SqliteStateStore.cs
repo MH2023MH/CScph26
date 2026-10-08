@@ -34,6 +34,7 @@ public sealed class SqliteStateStore : IStateStore, IDisposable
               id TEXT PRIMARY KEY, rule_id TEXT NOT NULL, ts INTEGER NOT NULL, severity INTEGER NOT NULL,
               group_key TEXT, message TEXT NOT NULL, event_ids TEXT NOT NULL, mode TEXT NOT NULL, action TEXT);
             CREATE INDEX IF NOT EXISTS ix_alerts_ts ON alerts(ts);
+            CREATE TABLE IF NOT EXISTS audits(kind TEXT PRIMARY KEY, status TEXT NOT NULL, ts INTEGER NOT NULL, summary TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS rule_state(rule_id TEXT PRIMARY KEY, mode TEXT NOT NULL, updated INTEGER NOT NULL);
             """);
     }
@@ -217,6 +218,30 @@ public sealed class SqliteStateStore : IStateStore, IDisposable
             var list = new List<Alert>();
             while (r.Read()) list.Add(ReadAlert(r));
             return list;
+        }
+    }
+
+    public void SetAudit(AuditEntry a)
+    {
+        lock (_gate)
+            Exec("INSERT OR REPLACE INTO audits(kind,status,ts,summary) VALUES($k,$s,$t,$m)", c =>
+            {
+                c.Parameters.AddWithValue("$k", a.Kind);
+                c.Parameters.AddWithValue("$s", a.Status);
+                c.Parameters.AddWithValue("$t", a.CheckedAt.ToUnixTimeMilliseconds());
+                c.Parameters.AddWithValue("$m", a.Summary);
+            });
+    }
+
+    public AuditEntry? GetAudit(string kind)
+    {
+        lock (_gate)
+        {
+            using var c = _db.CreateCommand();
+            c.CommandText = "SELECT kind,status,ts,summary FROM audits WHERE kind=$k";
+            c.Parameters.AddWithValue("$k", kind);
+            using var r = c.ExecuteReader();
+            return r.Read() ? new(r.GetString(0), r.GetString(1), DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(2)), r.GetString(3)) : null;
         }
     }
 

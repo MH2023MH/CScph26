@@ -35,6 +35,17 @@ public sealed class Allowlist
         return new Allowlist(groups.Values.Where(v => v != null).SelectMany(v => v!));
     }
 
+    /// <summary>Pertenencia estricta (para control de acceso): solo true si la IP está en algún rango.</summary>
+    public bool Matches(IPAddress? addr)
+    {
+        if (addr is null) return false;
+        if (addr.IsIPv4MappedToIPv6) addr = addr.MapToIPv4();
+        var bytes = addr.GetAddressBytes();
+        foreach (var (net, prefix) in _ranges)
+            if (net.Length == bytes.Length && Matches(net, bytes, prefix)) return true;
+        return false;
+    }
+
     /// <summary>true si la IP está protegida. Una IP ilegible se considera protegida (fallar hacia no bloquear).</summary>
     public bool IsAllowed(string? ip)
     {

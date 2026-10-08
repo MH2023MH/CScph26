@@ -6,8 +6,7 @@ namespace SecurityAgent.Responders;
 
 /// <summary>
 /// Convierte aciertos de regla en alertas y, solo en modo enforce, en acciones.
-/// Modo efectivo = el archivo de la regla dice 'enforce' Y la aprobación persistida (State Store) también.
-/// Doble llave deliberada (principio 1): editar un YAML no basta para empezar a bloquear.
+/// El modo efectivo sale de <see cref="RuleModes.Effective"/> (doble llave: archivo + aprobación persistida).
 /// </summary>
 public sealed class ResponseExecutor
 {
@@ -24,8 +23,7 @@ public sealed class ResponseExecutor
         _time = time ?? TimeProvider.System;
     }
 
-    public RuleMode EffectiveMode(Rule rule) =>
-        rule.FileMode == RuleMode.Enforce && _store.GetRuleMode(rule.Id) == RuleMode.Enforce ? RuleMode.Enforce : RuleMode.Observe;
+    public RuleMode EffectiveMode(Rule rule) => RuleModes.Effective(rule, _store);
 
     public Alert Handle(RuleHit hit)
     {
