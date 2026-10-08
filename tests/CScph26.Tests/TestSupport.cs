@@ -14,6 +14,7 @@ internal static class TestSupport
     }
 
     public static string RulesDir => Path.Combine(RepoRoot(), "rules");
+    public static string FixturePathAbs(string name) => Path.Combine(RepoRoot(), "tests", "fixtures", name);
     public static string FixturePath(string name) => Path.Combine(RepoRoot(), "tests", "fixtures", "events", name);
 
     /// <summary>Convierte los JSON simulados al modelo común (los collectors reales de la Fase 6 harán lo propio con el log crudo).</summary>

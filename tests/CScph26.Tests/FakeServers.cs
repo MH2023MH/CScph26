@@ -100,3 +100,44 @@ internal sealed class FakeWebhook : IDisposable
 
     public void Dispose() => _http.Close();
 }
+
+/// <summary>Servidor HTTP que responde con JSON preparado (hace de Ollama en las pruebas).</summary>
+internal sealed class FakeJsonServer : IDisposable
+{
+    private readonly HttpListener _http = new();
+    public List<string> Requests { get; } = new();
+    public Func<int, string> Response { get; set; } = _ => "{}";
+    public string Url { get; }
+
+    public FakeJsonServer()
+    {
+        var l = new TcpListener(IPAddress.Loopback, 0);
+        l.Start();
+        var port = ((IPEndPoint)l.LocalEndpoint).Port;
+        l.Stop();
+        Url = $"http://127.0.0.1:{port}";
+        _http.Prefixes.Add(Url + "/");
+        _http.Start();
+        _ = Task.Run(async () =>
+        {
+            var n = 0;
+            while (_http.IsListening)
+            {
+                try
+                {
+                    var ctx = await _http.GetContextAsync();
+                    using var sr = new StreamReader(ctx.Request.InputStream);
+                    var body = await sr.ReadToEndAsync();
+                    lock (Requests) Requests.Add(ctx.Request.HttpMethod + " " + ctx.Request.Url!.AbsolutePath + "\n" + body);
+                    var bytes = Encoding.UTF8.GetBytes(Response(n++));
+                    ctx.Response.ContentType = "application/json";
+                    await ctx.Response.OutputStream.WriteAsync(bytes);
+                    ctx.Response.Close();
+                }
+                catch { return; }
+            }
+        });
+    }
+
+    public void Dispose() => _http.Close();
+}

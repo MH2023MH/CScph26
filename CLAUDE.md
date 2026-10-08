@@ -1,7 +1,7 @@
 # CScph26 — Agente local de seguridad para srv-copahue2
 
 > Documento base del proyecto. Describe qué es, qué hace, cómo se diseña y en qué orden se
-> construye. Estado: **Fases 2–7 y 9 completadas en código** (las compuertas 1, 8 y 10 y el destino de logs siguen pendientes de personas; ver §10). Siguiente autónoma: Fases 11–12 (sistema 2). Creado 2026-10-08.
+> construye. Estado: **Fases 2–7, 9 y 11 completadas en código** (compuertas 1, 8 y 10, destino de logs y equipo del modelo pendientes de personas; ver §10). Siguiente autónoma: Fase 12 (endurecimiento del sistema 2). Creado 2026-10-08.
 > Revisado 2026-10-08: el proyecto pasa a ser un **sistema doble** (monitor autónomo + agente IA de consulta).
 
 ---
