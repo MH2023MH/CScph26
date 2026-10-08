@@ -11,6 +11,9 @@ public sealed class StateStoreOptions
     /// <summary>Máximo de eventos conservados (se borran los más antiguos).</summary>
     public int MaxEvents { get; set; } = 500_000;
 
+    /// <summary>Máximo de alertas conservadas.</summary>
+    public int MaxAlerts { get; set; } = 50_000;
+
     /// <summary>Tamaño máximo aproximado de datos en agent.db (bytes).</summary>
     public long MaxDatabaseBytes { get; set; } = 256L * 1024 * 1024;
 }

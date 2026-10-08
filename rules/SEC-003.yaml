@@ -1,0 +1,14 @@
+id: SEC-003
+nombre: Cuenta creada o agregada a grupo privilegiado
+modo: observe
+fuente: eventlog.security
+condicion:
+  event_id: [4720, 4732]
+  agrupar_por: ninguno
+  umbral: 1
+  ventana: 1m
+severidad: critica
+respuesta:
+  accion: notify
+  notificar: [correo, teams]
+runbook: runbooks/SEC-003-cuenta-privilegiada.md

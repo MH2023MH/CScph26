@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using SecurityAgent.Core.Alerts;
 using SecurityAgent.Core.Events;
 
 namespace SecurityAgent.Core.State;
@@ -29,6 +30,10 @@ public sealed class SqliteStateStore : IStateStore, IDisposable
             CREATE INDEX IF NOT EXISTS ix_events_ip ON events(ip);
             CREATE TABLE IF NOT EXISTS blocks(
               ip TEXT PRIMARY KEY, rule_id TEXT NOT NULL, reason TEXT NOT NULL, created INTEGER NOT NULL, expires INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS alerts(
+              id TEXT PRIMARY KEY, rule_id TEXT NOT NULL, ts INTEGER NOT NULL, severity INTEGER NOT NULL,
+              group_key TEXT, message TEXT NOT NULL, event_ids TEXT NOT NULL, mode TEXT NOT NULL, action TEXT);
+            CREATE INDEX IF NOT EXISTS ix_alerts_ts ON alerts(ts);
             CREATE TABLE IF NOT EXISTS rule_state(rule_id TEXT PRIMARY KEY, mode TEXT NOT NULL, updated INTEGER NOT NULL);
             """);
     }
@@ -144,6 +149,77 @@ public sealed class SqliteStateStore : IStateStore, IDisposable
         }
     }
 
+    private static BlockEntry ReadBlock(SqliteDataReader r) => new(r.GetString(0), r.GetString(1), r.GetString(2),
+        DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(3)), DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(4)));
+
+    public IReadOnlyList<BlockEntry> ListExpiredBlocks()
+    {
+        lock (_gate)
+        {
+            using var c = _db.CreateCommand();
+            c.CommandText = "SELECT ip,rule_id,reason,created,expires FROM blocks WHERE expires<=$now ORDER BY expires";
+            c.Parameters.AddWithValue("$now", Now);
+            using var r = c.ExecuteReader();
+            var list = new List<BlockEntry>();
+            while (r.Read()) list.Add(ReadBlock(r));
+            return list;
+        }
+    }
+
+    public void AddAlert(Alert a)
+    {
+        lock (_gate)
+            Exec("INSERT OR REPLACE INTO alerts(id,rule_id,ts,severity,group_key,message,event_ids,mode,action) VALUES($id,$r,$ts,$sev,$g,$m,$e,$mode,$act)", c =>
+            {
+                c.Parameters.AddWithValue("$id", a.Id);
+                c.Parameters.AddWithValue("$r", a.RuleId);
+                c.Parameters.AddWithValue("$ts", a.Timestamp.ToUnixTimeMilliseconds());
+                c.Parameters.AddWithValue("$sev", (int)a.Severity);
+                c.Parameters.AddWithValue("$g", (object?)a.GroupKey ?? DBNull.Value);
+                c.Parameters.AddWithValue("$m", a.Message);
+                c.Parameters.AddWithValue("$e", string.Join(',', a.EventIds));
+                c.Parameters.AddWithValue("$mode", a.Mode.ToString());
+                c.Parameters.AddWithValue("$act", (object?)a.ActionTaken ?? DBNull.Value);
+            });
+    }
+
+    private const string AlertCols = "id,rule_id,ts,severity,group_key,message,event_ids,mode,action";
+
+    private static Alert ReadAlert(SqliteDataReader r) => new(
+        r.GetString(0), r.GetString(1), DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(2)), (Severity)r.GetInt32(3),
+        r.IsDBNull(4) ? null : r.GetString(4), r.GetString(5),
+        r.GetString(6).Length == 0 ? Array.Empty<string>() : r.GetString(6).Split(','),
+        Enum.Parse<RuleMode>(r.GetString(7)), r.IsDBNull(8) ? null : r.GetString(8));
+
+    public Alert? GetAlert(string id)
+    {
+        lock (_gate)
+        {
+            using var c = _db.CreateCommand();
+            c.CommandText = $"SELECT {AlertCols} FROM alerts WHERE id=$id";
+            c.Parameters.AddWithValue("$id", id);
+            using var r = c.ExecuteReader();
+            return r.Read() ? ReadAlert(r) : null;
+        }
+    }
+
+    public IReadOnlyList<Alert> ListAlerts(DateTimeOffset? since = null, string? ruleId = null, Severity? minSeverity = null, int limit = 100)
+    {
+        lock (_gate)
+        {
+            using var c = _db.CreateCommand();
+            c.CommandText = $"SELECT {AlertCols} FROM alerts WHERE ($since IS NULL OR ts>=$since) AND ($rule IS NULL OR rule_id=$rule) AND ($sev IS NULL OR severity>=$sev) ORDER BY ts DESC LIMIT $lim";
+            c.Parameters.AddWithValue("$since", since is null ? DBNull.Value : since.Value.ToUnixTimeMilliseconds());
+            c.Parameters.AddWithValue("$rule", (object?)ruleId ?? DBNull.Value);
+            c.Parameters.AddWithValue("$sev", minSeverity is null ? DBNull.Value : (int)minSeverity.Value);
+            c.Parameters.AddWithValue("$lim", Math.Clamp(limit, 1, 10_000));
+            using var r = c.ExecuteReader();
+            var list = new List<Alert>();
+            while (r.Read()) list.Add(ReadAlert(r));
+            return list;
+        }
+    }
+
     public RuleMode GetRuleMode(string ruleId)
     {
         lock (_gate)
@@ -185,8 +261,9 @@ public sealed class SqliteStateStore : IStateStore, IDisposable
             int events = 0, blocks;
             using (var c = _db.CreateCommand())
             {
-                c.CommandText = "DELETE FROM blocks WHERE expires<=$now";
-                c.Parameters.AddWithValue("$now", Now);
+                // Un bloqueo vencido se conserva 24 h para que el responder lo retire del firewall (SweepExpired).
+                c.CommandText = "DELETE FROM blocks WHERE expires<=$cut";
+                c.Parameters.AddWithValue("$cut", _time.GetUtcNow().AddHours(-24).ToUnixTimeMilliseconds());
                 blocks = c.ExecuteNonQuery();
             }
             // 1) retención por antigüedad
@@ -202,6 +279,19 @@ public sealed class SqliteStateStore : IStateStore, IDisposable
                 c.CommandText = "DELETE FROM events WHERE id IN (SELECT id FROM events ORDER BY ts ASC LIMIT MAX(0,(SELECT COUNT(*) FROM events)-$max))";
                 c.Parameters.AddWithValue("$max", _opt.MaxEvents);
                 events += c.ExecuteNonQuery();
+            }
+            // alertas: misma retención y tope propio
+            using (var c = _db.CreateCommand())
+            {
+                c.CommandText = "DELETE FROM alerts WHERE ts<$cut";
+                c.Parameters.AddWithValue("$cut", _time.GetUtcNow().Subtract(_opt.EventRetention).ToUnixTimeMilliseconds());
+                c.ExecuteNonQuery();
+            }
+            using (var c = _db.CreateCommand())
+            {
+                c.CommandText = "DELETE FROM alerts WHERE id IN (SELECT id FROM alerts ORDER BY ts ASC LIMIT MAX(0,(SELECT COUNT(*) FROM alerts)-$max))";
+                c.Parameters.AddWithValue("$max", _opt.MaxAlerts);
+                c.ExecuteNonQuery();
             }
             // 3) tope de tamaño: borrar lotes de los más antiguos hasta caber
             while (UsedBytes > _opt.MaxDatabaseBytes && Scalar("SELECT COUNT(*) FROM events") > 0)

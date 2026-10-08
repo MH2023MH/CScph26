@@ -1,0 +1,14 @@
+id: SEC-005
+nombre: App Pool detenido o en bucle de reinicios
+modo: observe
+fuente: eventlog.system
+condicion:
+  event_id: 5002
+  agrupar_por: objeto
+  umbral: 3
+  ventana: 10m
+severidad: media
+respuesta:
+  accion: notify
+  notificar: [correo, teams]
+runbook: runbooks/SEC-005-app-pool.md

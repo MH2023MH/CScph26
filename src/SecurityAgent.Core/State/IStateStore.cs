@@ -1,3 +1,4 @@
+using SecurityAgent.Core.Alerts;
 using SecurityAgent.Core.Events;
 
 namespace SecurityAgent.Core.State;
@@ -18,6 +19,12 @@ public interface IStateStore
     void AddBlock(BlockEntry block);
     IReadOnlyList<BlockEntry> ListActiveBlocks();
     bool RemoveBlock(string ip);
+    /// <summary>Bloqueos vencidos que aún no se han retirado del firewall.</summary>
+    IReadOnlyList<BlockEntry> ListExpiredBlocks();
+
+    void AddAlert(Alert alert);
+    Alert? GetAlert(string id);
+    IReadOnlyList<Alert> ListAlerts(DateTimeOffset? since = null, string? ruleId = null, Severity? minSeverity = null, int limit = 100);
 
     /// <summary>Las reglas sin estado guardado arrancan en Observe (principio 1).</summary>
     RuleMode GetRuleMode(string ruleId);
