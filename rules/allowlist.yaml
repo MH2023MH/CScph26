@@ -1,0 +1,6 @@
+# Lista blanca (principio 2): estas direcciones jamas se bloquean.
+# Valores iniciales provisionales; se ajustaran (decision de Fase 0, 2026-10-08).
+red_interna:
+  - 192.168.0.0/16        # rango general provisional (192.168.XXX.XXX)
+ips_administracion: []    # PENDIENTE: agregar IPs de administracion
+cloudflare: []            # PENDIENTE: agregar rangos publicados por Cloudflare (https://www.cloudflare.com/ips/)

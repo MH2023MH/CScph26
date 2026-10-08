@@ -1,7 +1,7 @@
-# C_Security_agent — Agente local de seguridad para srv-copahue2
+# CScph26 — Agente local de seguridad para srv-copahue2
 
 > Documento base del proyecto. Describe qué es, qué hace, cómo se diseña y en qué orden se
-> construye. Estado: **Fase 0 (diseño)** — todavía no hay código. Creado 2026-10-08.
+> construye. Estado: **Fase 2 (estructura base)** — decisiones de Fase 0 cerradas el 2026-10-08; solución .NET creada, aún sin lógica. Creado 2026-10-08.
 > Revisado 2026-10-08: el proyecto pasa a ser un **sistema doble** (monitor autónomo + agente IA de consulta).
 
 ---
@@ -207,7 +207,8 @@ Planes transversales a redactar:
 ## 8. Estructura prevista del repositorio
 
 ```
-C_Security_agent/
+CScph26/
+├── CScph26.sln
 ├── CLAUDE.md                 (este documento)
 ├── src/
 │   ├── SecurityAgent.Worker/ Servicio .NET 8 (host del sistema 1)
@@ -220,7 +221,8 @@ C_Security_agent/
 ├── runbooks/                 Un runbook por regla/escenario
 ├── deploy/                   Instalación del servicio, permisos, firewall, Sysmon config, despliegue del advisor
 ├── docs/                     Decisiones de diseño, línea base CIS, contrato de la API de estado
-└── tests/                    Motor de reglas con eventos simulados; pruebas de inyección y de respuestas del advisor
+├── .github/workflows/ci.yml  CI: compilar y probar
+└── tests/                    Banco de eventos simulados (tests/fixtures/events); motor de reglas con eventos simulados; pruebas de inyección y de respuestas del advisor
 ```
 
 ---
@@ -275,10 +277,10 @@ Cada fase tiene un **tipo**, un **criterio de salida** verificable y sus **depen
 
 - [ ] ¿Hay una VM/equipo aparte para enviar los logs fuera del servidor? (define el destino de los logs externos y si Wazuh es viable más adelante)
 - [ ] Edición de Windows Server y de SQL Server (afecta qué auditorías nativas están disponibles).
-- [ ] Canal de alertas preferido: correo, Teams o ambos, y quién las recibe.
-- [ ] Lista blanca inicial: rangos de la red interna, IPs de administración, rangos de Cloudflare.
-- [ ] ¿El agente corre solo en srv-copahue2 o debe poder instalarse en otros servidores?
-- [ ] Nombre definitivo del servicio y carpeta de despliegue (propuesta: `D:\Apps\SecurityAgent`).
+- [x] **Canal de alertas (decidido 2026-10-08):** correo y Teams; si ambos no son posibles o dan problemas, solo correo como canal principal. Destinatarios: pendiente (antes de Fase 8).
+- [x] **Lista blanca inicial (decidido 2026-10-08, provisional):** red interna `192.168.0.0/16` (rango general, se ajustará). Pendiente: IPs de administración y rangos de Cloudflare (`rules/allowlist.yaml`).
+- [x] **Alcance (decidido 2026-10-08):** por ahora solo srv-copahue2.
+- [x] **Servicio y carpeta (decidido 2026-10-08):** servicio `SecurityAgent`, carpeta `D:\Apps\SecurityAgent`. Repositorio y solución: `CScph26`.
 - [ ] Ventanas de deploy conocidas, para no alertar SEC-006 durante despliegues legítimos.
 - [x] **Sistema 2 — ubicación (decidido 2026-10-08):** el modelo corre en un **equipo propio dedicado** (físico o VM), separado de srv-copahue2, con **recursos abundantes** asignados. No compite con las apps del servidor.
 - [ ] **Sistema 2 — hardware (pendiente de especificar):** el detalle (RAM, GPU/VRAM, CPU, disco) no está definido aún, pero se asume holgado. Al fijarlo se elige el tamaño del modelo; con recursos amplios ya no se está limitado a modelos de 7–8B. Decidir también si el equipo es físico o VM (una VM con GPU en passthrough exige verificar soporte del hipervisor).

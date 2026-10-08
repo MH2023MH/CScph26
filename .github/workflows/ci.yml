@@ -1,0 +1,15 @@
+name: CI
+on:
+  push:
+  pull_request:
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: dotnet restore CScph26.sln
+      - run: dotnet build CScph26.sln --no-restore -c Release
+      - run: dotnet test CScph26.sln --no-build -c Release --verbosity normal

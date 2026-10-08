@@ -1,0 +1,6 @@
+2026-10-08 08:00:01.10 Logon       Login failed for user 'sa'. Reason: Password did not match that for the login provided. [CLIENT: 203.0.113.90]
+2026-10-08 08:00:01.20 Logon       Error: 18456, Severity: 14, State: 8.
+2026-10-08 08:00:02.30 Logon       Login failed for user 'sa'. Reason: Password did not match that for the login provided. [CLIENT: 203.0.113.90]
+2026-10-08 08:00:03.40 Logon       Login failed for user 'admin'. Reason: Could not find a login matching the name provided. [CLIENT: 203.0.113.90]
+2026-10-08 08:00:04.50 Logon       Login failed for user 'sa'. Reason: Password did not match that for the login provided. [CLIENT: 203.0.113.90]
+2026-10-08 08:30:00.00 Logon       Login failed for user 'AppUser'. Reason: Password did not match that for the login provided. [CLIENT: 192.168.1.20]

@@ -1,0 +1,11 @@
+#Software: Microsoft Internet Information Services 10.0
+#Version: 1.0
+#Fields: date time s-ip cs-method cs-uri-stem cs-uri-query s-port cs-username c-ip cs(User-Agent) sc-status time-taken
+2026-10-08 07:00:01 192.168.1.10 GET /index.html - 443 - 192.168.1.30 Mozilla/5.0 200 12
+2026-10-08 07:10:01 192.168.1.10 GET /wp-login.php - 443 - 203.0.113.77 Mozilla/5.0 404 3
+2026-10-08 07:10:02 192.168.1.10 GET /.env - 443 - 203.0.113.77 Mozilla/5.0 404 2
+2026-10-08 07:10:02 192.168.1.10 GET /phpmyadmin/ - 443 - 203.0.113.77 Mozilla/5.0 404 2
+2026-10-08 07:10:03 192.168.1.10 GET /../../windows/win.ini - 443 - 203.0.113.77 Mozilla/5.0 400 1
+2026-10-08 07:10:04 192.168.1.10 GET /app/buscar q=1'+OR+'1'='1 443 - 203.0.113.77 sqlmap/1.7 500 8
+2026-10-08 07:10:05 192.168.1.10 GET /admin - 443 - 203.0.113.77 Mozilla/5.0 404 2
+2026-10-08 07:10:05 192.168.1.10 GET /backup.zip - 443 - 203.0.113.77 Mozilla/5.0 404 2

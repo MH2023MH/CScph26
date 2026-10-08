@@ -1,0 +1,10 @@
+{
+  "descripcion": "Eventos simulados del Event Log System/Security para SEC-004 y SEC-005.",
+  "eventos": [
+    { "id": "SIM-7045-001", "event_id": 7045, "tiempo": "2026-10-08T05:00:00Z", "servicio": "UpdaterSvc", "ruta": "C:\\Users\\Public\\upd.exe", "nota": "servicio nuevo (SEC-004)" },
+    { "id": "SIM-4698-001", "event_id": 4698, "tiempo": "2026-10-08T05:05:00Z", "tarea": "\\Microsoft\\Windows\\Sync", "comando": "powershell.exe -enc AAAA", "nota": "tarea programada nueva (SEC-004)" },
+    { "id": "SIM-APPPOOL-001", "event_id": 5002, "tiempo": "2026-10-08T06:00:00Z", "app_pool": "AppPoolDemo", "nota": "App Pool deshabilitado por fallos rapidos (SEC-005)" },
+    { "id": "SIM-APPPOOL-002", "event_id": 5002, "tiempo": "2026-10-08T06:02:00Z", "app_pool": "AppPoolDemo" },
+    { "id": "SIM-APPPOOL-003", "event_id": 5002, "tiempo": "2026-10-08T06:04:00Z", "app_pool": "AppPoolDemo" }
+  ]
+}
