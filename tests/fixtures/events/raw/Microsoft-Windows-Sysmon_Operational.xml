@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Events>
+  <Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+    <System>
+      <Provider Name="Microsoft-Windows-Sysmon" Guid="{5770385F-C22A-43E0-BF4C-06F5698FFBD9}" />
+      <EventID>1</EventID>
+      <Version>0</Version>
+      <Level>4</Level>
+      <TimeCreated SystemTime="2026-10-08T11:00:00.0000000Z" />
+      <EventRecordID>9001</EventRecordID>
+      <Execution ProcessID="632" ThreadID="1234" />
+      <Channel>Microsoft-Windows-Sysmon/Operational</Channel>
+      <Computer>srv-copahue2</Computer>
+    </System>
+    <EventData><Data Name="UtcTime">2026-10-08 11:00:00.000</Data><Data Name="Image">C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe</Data><Data Name="CommandLine">powershell.exe -NoP -W Hidden -enc SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkA</Data><Data Name="User">SRV-COPAHUE2\bob</Data><Data Name="ParentImage">C:\Windows\System32\cmd.exe</Data></EventData>
+  </Event>
+  <Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+    <System>
+      <Provider Name="Microsoft-Windows-Sysmon" Guid="{5770385F-C22A-43E0-BF4C-06F5698FFBD9}" />
+      <EventID>1</EventID>
+      <Version>0</Version>
+      <Level>4</Level>
+      <TimeCreated SystemTime="2026-10-08T11:01:00.0000000Z" />
+      <EventRecordID>9002</EventRecordID>
+      <Execution ProcessID="632" ThreadID="1234" />
+      <Channel>Microsoft-Windows-Sysmon/Operational</Channel>
+      <Computer>srv-copahue2</Computer>
+    </System>
+    <EventData><Data Name="Image">C:\Users\bob\AppData\Local\Temp\x7a.exe</Data><Data Name="CommandLine">x7a.exe /s</Data><Data Name="User">SRV-COPAHUE2\bob</Data></EventData>
+  </Event>
+  <Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+    <System>
+      <Provider Name="Microsoft-Windows-Sysmon" Guid="{5770385F-C22A-43E0-BF4C-06F5698FFBD9}" />
+      <EventID>1</EventID>
+      <Version>0</Version>
+      <Level>4</Level>
+      <TimeCreated SystemTime="2026-10-08T11:02:00.0000000Z" />
+      <EventRecordID>9003</EventRecordID>
+      <Execution ProcessID="632" ThreadID="1234" />
+      <Channel>Microsoft-Windows-Sysmon/Operational</Channel>
+      <Computer>srv-copahue2</Computer>
+    </System>
+    <EventData><Data Name="Image">C:\Windows\System32\notepad.exe</Data><Data Name="CommandLine">notepad.exe</Data><Data Name="User">SRV-COPAHUE2\bob</Data></EventData>
+  </Event>
+  <Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+    <System>
+      <Provider Name="Microsoft-Windows-Sysmon" Guid="{5770385F-C22A-43E0-BF4C-06F5698FFBD9}" />
+      <EventID>1</EventID>
+      <Version>0</Version>
+      <Level>4</Level>
+      <TimeCreated SystemTime="2026-10-08T11:03:00.0000000Z" />
+      <EventRecordID>9004</EventRecordID>
+      <Execution ProcessID="632" ThreadID="1234" />
+      <Channel>Microsoft-Windows-Sysmon/Operational</Channel>
+      <Computer>srv-copahue2</Computer>
+    </System>
+    <EventData><Data Name="Image">C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe</Data><Data Name="CommandLine">powershell.exe -ExecutionPolicy Bypass -File C:\scripts\backup.ps1</Data><Data Name="User">SRV-COPAHUE2\svc</Data></EventData>
+  </Event>
+</Events>

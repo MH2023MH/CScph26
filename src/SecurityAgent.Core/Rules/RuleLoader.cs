@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using SecurityAgent.Core.Events;
 using SecurityAgent.Core.State;
 using YamlDotNet.Serialization;
@@ -16,7 +17,7 @@ public static class RuleLoader
         public string? Id { get; set; }
         public string? Nombre { get; set; }
         public string? Modo { get; set; }
-        public string? Fuente { get; set; }
+        public object? Fuente { get; set; }
         public CondicionDto? Condicion { get; set; }
         public string? Severidad { get; set; }
         public List<string>? Excluir { get; set; }
@@ -30,6 +31,16 @@ public static class RuleLoader
         public string? AgruparPor { get; set; }
         public int Umbral { get; set; }
         public string? Ventana { get; set; }
+        public List<FiltroDto>? Filtros { get; set; }
+        public List<FiltroDto>? Excepto { get; set; }
+    }
+
+    private sealed class FiltroDto
+    {
+        public string? Campo { get; set; }
+        public List<string>? Contiene { get; set; }
+        public string? Regex { get; set; }
+        public string? Igual { get; set; }
     }
 
     private sealed class RespuestaDto
@@ -48,7 +59,7 @@ public static class RuleLoader
         var rules = new List<Rule>();
         foreach (var file in Directory.GetFiles(dir, "*.yaml").OrderBy(f => f, StringComparer.Ordinal))
         {
-            if (Path.GetFileName(file).Equals("allowlist.yaml", StringComparison.OrdinalIgnoreCase)) continue;
+            if (Path.GetFileName(file) is var fn && (fn.Equals("allowlist.yaml", StringComparison.OrdinalIgnoreCase) || fn.Equals("deploy-windows.yaml", StringComparison.OrdinalIgnoreCase))) continue;
             rules.Add(ParseYaml(File.ReadAllText(file), Path.GetFileName(file)));
         }
         var dup = rules.GroupBy(r => r.Id).FirstOrDefault(g => g.Count() > 1);
@@ -65,7 +76,15 @@ public static class RuleLoader
         void Fail(string msg) => throw new RuleValidationException($"{origin}: {msg}");
 
         if (string.IsNullOrWhiteSpace(dto.Id)) Fail("falta 'id'");
-        if (string.IsNullOrWhiteSpace(dto.Fuente)) Fail("falta 'fuente'");
+        var sources = new HashSet<string>(StringComparer.Ordinal);
+        switch (dto.Fuente)
+        {
+            case string fs when !string.IsNullOrWhiteSpace(fs): sources.Add(fs.Trim()); break;
+            case IEnumerable<object> fl:
+                foreach (var o in fl) if (o?.ToString() is { Length: > 0 } t) sources.Add(t.Trim());
+                break;
+        }
+        if (sources.Count == 0) Fail("falta 'fuente'");
         var c = dto.Condicion ?? new CondicionDto();
         if (dto.Condicion == null) Fail("falta 'condicion'");
 
@@ -101,7 +120,10 @@ public static class RuleLoader
         if (!Enum.TryParse<Severity>(sevText, true, out var severity)) Fail($"severidad inválida '{dto.Severidad}'");
 
         var excludeAllow = dto.Excluir?.Contains("lista_blanca") ?? false;
-        if (dto.Excluir != null && dto.Excluir.Any(x => x != "lista_blanca")) Fail("'excluir' solo admite 'lista_blanca'");
+        var excludeWindows = dto.Excluir?.Contains("ventanas_deploy") ?? false;
+        if (dto.Excluir != null && dto.Excluir.Any(x => x is not ("lista_blanca" or "ventanas_deploy"))) Fail("'excluir' solo admite 'lista_blanca' y 'ventanas_deploy'");
+        var filters = (c.Filtros ?? new()).Select(f => ParseFilter(f, origin, "condicion.filtros")).ToList();
+        var except = (c.Excepto ?? new()).Select(f => ParseFilter(f, origin, "condicion.excepto")).ToList();
 
         string? action = dto.Respuesta?.Accion;
         TimeSpan? blockDuration = null;
@@ -118,8 +140,26 @@ public static class RuleLoader
         var notify = dto.Respuesta?.Notificar ?? new List<string>();
         if (notify.Any(n => n is not ("correo" or "teams"))) Fail("respuesta.notificar solo admite correo|teams");
 
-        return new Rule(dto.Id!.Trim(), dto.Nombre ?? dto.Id!, mode, dto.Fuente!.Trim(), types, group, c.Umbral, window,
-            severity, excludeAllow, action, blockDuration, notify, dto.Runbook);
+        return new Rule(dto.Id!.Trim(), dto.Nombre ?? dto.Id!, mode, string.Join(",", sources.OrderBy(x => x)), types, group, c.Umbral, window,
+            severity, excludeAllow, action, blockDuration, notify, dto.Runbook, sources, filters, except, excludeWindows);
+    }
+
+    private static EventFilter ParseFilter(FiltroDto f, string origin, string where)
+    {
+        void Fail(string msg) => throw new RuleValidationException($"{origin}: {where}: {msg}");
+        var field = (f.Campo ?? "").Trim().ToLowerInvariant();
+        if (!EventFilter.Fields.Contains(field)) Fail($"campo inválido '{f.Campo}' ({string.Join("|", EventFilter.Fields)})");
+        var contains = (f.Contiene ?? new()).Where(x => !string.IsNullOrEmpty(x)).ToList();
+        var kinds = (contains.Count > 0 ? 1 : 0) + (f.Regex != null ? 1 : 0) + (f.Igual != null ? 1 : 0);
+        if (kinds == 0) Fail("cada filtro necesita 'contiene', 'regex' o 'igual'");
+        if (f.Igual != null && (contains.Count > 0 || f.Regex != null)) Fail("'igual' no se combina con 'contiene'/'regex'");
+        Regex? rx = null;
+        if (f.Regex != null)
+        {
+            try { rx = new Regex(f.Regex, RegexOptions.IgnoreCase | RegexOptions.NonBacktracking | RegexOptions.CultureInvariant); }
+            catch (Exception e) when (e is ArgumentException or NotSupportedException) { Fail($"regex inválida o no admitida (sin retroceso): {e.Message}"); }
+        }
+        return new EventFilter(field, contains, rx, f.Igual);
     }
 
     /// <summary>Formato: entero + unidad s|m|h|d (p. ej. 30s, 5m, 1h, 2d).</summary>

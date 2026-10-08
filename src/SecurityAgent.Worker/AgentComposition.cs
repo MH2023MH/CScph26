@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using SecurityAgent.Collectors;
+using SecurityAgent.Collectors.Audits;
 using SecurityAgent.Collectors.EventLog;
 using SecurityAgent.Collectors.Files;
 using SecurityAgent.Core.Rules;
@@ -32,7 +33,8 @@ public static class AgentComposition
         // Falla cerrada: reglas o lista blanca inválidas impiden arrancar (mejor no iniciar que iniciar sin protección ni exclusiones).
         s.AddSingleton(_ => Allowlist.LoadFile(Path.Combine(o.ResolveRulesDir(), "allowlist.yaml")));
         s.AddSingleton<IReadOnlyList<Rule>>(_ => RuleLoader.LoadDirectory(o.ResolveRulesDir()));
-        s.AddSingleton(sp => new RuleEngine(sp.GetRequiredService<IReadOnlyList<Rule>>(), sp.GetRequiredService<Allowlist>()));
+        s.AddSingleton(_ => DeployWindows.LoadFile(Path.Combine(o.ResolveRulesDir(), "deploy-windows.yaml")));
+        s.AddSingleton(sp => new RuleEngine(sp.GetRequiredService<IReadOnlyList<Rule>>(), sp.GetRequiredService<Allowlist>(), sp.GetRequiredService<DeployWindows>()));
 
         s.TryAddSingleton<IFirewall, WindowsFirewall>();
         s.AddSingleton(sp => new ResponseExecutor(sp.GetRequiredService<IStateStore>(), sp.GetRequiredService<IFirewall>(),
@@ -63,10 +65,14 @@ public static class AgentComposition
 
         s.AddSingleton(sp => new StatusService(sp.GetRequiredService<IStateStore>(), sp.GetRequiredService<IReadOnlyList<Rule>>(),
             sp.GetRequiredService<Heartbeat>(), sp.GetRequiredService<TimeProvider>(), null, sp.GetRequiredService<AgentHealth>()));
+        s.TryAddSingleton<ICertificateSource>(_ => new X509StoreCertificateSource());
+        s.AddSingleton<IEnumerable<IAudit>>(sp => BuildAudits(sp, o));
+        s.AddSingleton<AuditRunner>();
         s.AddSingleton<CollectorRunner>();
         s.AddHostedService<CollectorService>();
         s.AddHostedService<MaintenanceService>();
         s.AddHostedService<IntegrityService>();
+        s.AddHostedService<AuditScheduler>();
         s.AddHostedService<LogShipperService>();
         return s;
     }
@@ -90,6 +96,22 @@ public static class AgentComposition
                 ["manifest_sha256"] = monitor.ManifestSha256,
                 ["integrity"] = health.Integrity,
             });
+    }
+
+    private static List<IAudit> BuildAudits(IServiceProvider sp, AgentOptions o)
+    {
+        var time = sp.GetRequiredService<TimeProvider>();
+        var list = new List<IAudit>
+        {
+            new CertificateAudit(sp.GetRequiredService<ICertificateSource>(), o.Audits.Certificates, time),
+            new BackupAudit(o.Audits.Backups, time),
+        };
+        if (o.Audits.Hardening)
+        {
+            if (sp.GetService<IHardeningProbe>() is { } probe) list.Add(new HardeningAudit(probe));
+            else if (OperatingSystem.IsWindows()) list.Add(new HardeningAudit(new WindowsHardeningProbe()));
+        }
+        return list;
     }
 
     private static List<ICollector> BuildCollectors(IServiceProvider sp, AgentOptions o)

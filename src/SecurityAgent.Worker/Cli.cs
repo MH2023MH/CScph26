@@ -45,6 +45,30 @@ public static class Cli
             output.WriteLine(hadRecord ? $"Bloqueo de {ip} retirado del firewall y del registro." : $"No había registro de bloqueo para {ip}; se retiró cualquier regla residual del firewall.");
             return 0;
         }
+        if (args.Contains("--set-mode"))
+        {
+            // Aprobación humana explícita de enforce (principio 1). Es una de las dos llaves; la otra es 'modo: enforce' en el YAML de la regla.
+            var i = Array.IndexOf(args, "--set-mode");
+            if (i + 2 >= args.Length || !Enum.TryParse<RuleMode>(args[i + 2], true, out var mode))
+            {
+                output.WriteLine("Uso: --set-mode <ID de regla> <observe|enforce>");
+                return 1;
+            }
+            var rule = RuleLoader.LoadDirectory(options.ResolveRulesDir()).FirstOrDefault(r => r.Id.Equals(args[i + 1], StringComparison.OrdinalIgnoreCase));
+            if (rule is null)
+            {
+                output.WriteLine($"No existe la regla '{args[i + 1]}' en {options.ResolveRulesDir()}.");
+                return 1;
+            }
+            using var store = new SqliteStateStore(options.Store);
+            store.SetRuleMode(rule.Id, mode);
+            output.WriteLine($"Aprobación guardada: {rule.Id} = {mode}.");
+            if (mode == RuleMode.Enforce && rule.FileMode != RuleMode.Enforce)
+                output.WriteLine($"AVISO: el archivo de la regla sigue en 'modo: observe'; la regla NO bloqueará hasta que también diga 'modo: enforce' (y se regenere el manifiesto).");
+            if (mode == RuleMode.Observe && rule.FileMode == RuleMode.Enforce)
+                output.WriteLine("AVISO: el archivo de la regla dice 'modo: enforce' pero la aprobación está retirada: la regla opera en observe.");
+            return 0;
+        }
         if (args.Contains("--list-blocks"))
         {
             using var store = new SqliteStateStore(options.Store);

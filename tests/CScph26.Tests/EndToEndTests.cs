@@ -48,7 +48,8 @@ public sealed class EndToEndTests : IDisposable
         Assert.Single(alerts, a => a.RuleId == "SEC-001" && a.GroupKey == "203.0.113.50" && a.EventIds.Count == 8);
         Assert.Equal(2, alerts.Count(a => a.RuleId == "SEC-003"));
         Assert.Single(alerts, a => a.RuleId == "SEC-005" && a.GroupKey == "AppPoolDemo");
-        Assert.Equal(4, alerts.Count);
+        Assert.Equal(2, alerts.Count(a => a.RuleId == "SEC-004"));          // servicio nuevo (7045) y tarea programada (4698)
+        Assert.Equal(6, alerts.Count);
 
         // observe: nada se ejecuta
         Assert.Empty(_fw.Blocked);

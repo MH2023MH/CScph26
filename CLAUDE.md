@@ -1,7 +1,7 @@
 # CScph26 — Agente local de seguridad para srv-copahue2
 
 > Documento base del proyecto. Describe qué es, qué hace, cómo se diseña y en qué orden se
-> construye. Estado: **Fase 7 completada en código** (integridad, envío de logs, límites, scripts de despliegue sin probar en Windows). Siguiente: Fase 9 (resto del catálogo). Creado 2026-10-08.
+> construye. Estado: **Fases 2–7 y 9 completadas en código** (las compuertas 1, 8 y 10 y el destino de logs siguen pendientes de personas; ver §10). Siguiente autónoma: Fases 11–12 (sistema 2). Creado 2026-10-08.
 > Revisado 2026-10-08: el proyecto pasa a ser un **sistema doble** (monitor autónomo + agente IA de consulta).
 
 ---
@@ -137,15 +137,15 @@ Todas inician en `observe`.
 | ID | Detección | Fuente | Respuesta (cuando pase a enforce) |
 |---|---|---|---|
 | SEC-001 | Fuerza bruta RDP (N logins fallidos 4625 por IP en X min) | Event Log Security | Bloqueo temporal de la IP |
-| SEC-002 | Fuerza bruta SQL (logins fallidos repetidos) | ERRORLOG SQL | Alerta; bloqueo de IP si es externa |
+| SEC-002 | Fuerza bruta SQL (≥4 logins fallidos en 5 min por IP) | ERRORLOG SQL | Alerta; bloqueo de IP si es externa |
 | SEC-003 | Cuenta local/administrador creada o agregada a grupo privilegiado (4720, 4732) | Event Log Security | Alerta crítica |
 | SEC-004 | Servicio o tarea programada nueva (7045, 4698) | System / Security | Alerta |
 | SEC-005 | App Pool detenido o en bucle de reinicios | Event Log / IIS | Alerta |
 | SEC-006 | Cambio en `web.config`, `appsettings.*` o binarios de `D:\Apps\*` fuera de ventana de deploy | FileSystemWatcher | Alerta crítica |
-| SEC-007 | Patrones de ataque en logs IIS (escaneo, 404 masivos, `../`, inyección) | Logs IIS | Bloqueo temporal de la IP |
+| SEC-007 | Patrones de ataque en logs IIS (escaneo, `../`, inyección; variante SEC-007-404 para ráfagas de 404) | Logs IIS | Bloqueo temporal de la IP |
 | SEC-008 | Defender detecta malware o se desactiva | Eventos de Defender | Alerta crítica |
 | SEC-009 | Certificado por vencer / backup sin ejecutar | Scheduler | Alerta |
-| SEC-010 | Proceso sospechoso (Sysmon: PowerShell codificado, procesos desde `Temp`) | Sysmon | Alerta |
+| SEC-010 | Proceso sospechoso (Sysmon: PowerShell codificado; variante SEC-010-TEMP para procesos desde `Temp`) | Sysmon | Alerta |
 
 El catálogo crecerá; cada regla debe tener su runbook (§6).
 
@@ -221,7 +221,7 @@ CScph26/
 ├── rules/                    Reglas YAML + allowlist.yaml
 ├── runbooks/                 Un runbook por regla/escenario
 ├── deploy/                   Instalación del servicio, permisos, firewall, Sysmon config, despliegue del advisor
-├── docs/                     Decisiones de diseño, línea base CIS, contrato de la API de estado
+├── docs/                     Contrato de la API de estado (api-estado.md) y planes transversales (planes/)
 ├── .github/workflows/ci.yml  CI: compilar y probar
 └── tests/                    Banco de eventos simulados (tests/fixtures/events); motor de reglas con eventos simulados; pruebas de inyección y de respuestas del advisor
 ```
@@ -288,3 +288,8 @@ Cada fase tiene un **tipo**, un **criterio de salida** verificable y sus **depen
 - [ ] **Sistema 2 — modelo local vs. API de pago:** con hardware propio y abundante, se prioriza modelo local (los datos no salen); la API de pago queda solo como alternativa con filtrado previo.
 - [ ] **Sistema 2:** interfaz de consulta preferida (consola, página local de chat o Teams) y quién puede consultar.
 - [ ] **Sistema 2:** ¿qué datos nunca deben llegar al modelo (usuarios, IPs internas, rutas)? Define el saneado de la API de estado.
+- [ ] **Respaldos a vigilar (SEC-009):** ¿cómo y dónde se respaldan SQL Server y `D:\Apps`? Hace falta carpeta, patrón de archivo y antigüedad máxima de cada respaldo (`Audits:Backups:Targets`). Mientras no se configure, la auditoría informa `sin_configurar`.
+- [ ] **Registro de la IP real tras Cloudflare Tunnel (SEC-007):** configurar en IIS el campo personalizado `CF-Connecting-IP`; sin él las reglas de IIS ven la IP local del túnel y no pueden atribuir ni bloquear al atacante. Además, el bloqueo en Windows Firewall no frena tráfico que entra por el túnel: valorar reglas en Cloudflare WAF.
+- [ ] **Privilegios para bloquear (antes de cualquier `enforce`):** la cuenta virtual de mínimos privilegios no puede crear reglas de firewall. Decidir entre un ayudante privilegiado mínimo o una cuenta con permisos de firewall (ver `deploy/README.md`).
+- [ ] **Datos de contacto de escalamiento** para `docs/planes/respuesta-a-incidentes.md` (nombres y teléfonos).
+- [ ] **Confirmar con datos reales (Fase 8):** IDs de eventos de Defender de SEC-008 (1116, 1119, 5001, 5010, 5012), configuración de Sysmon (depende de su versión) y que `auditpol` reporta correctamente la auditoría de 4625.

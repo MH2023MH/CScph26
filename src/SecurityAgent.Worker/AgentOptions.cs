@@ -1,3 +1,4 @@
+using SecurityAgent.Collectors.Audits;
 using SecurityAgent.Collectors.EventLog;
 using SecurityAgent.Collectors.Files;
 using SecurityAgent.Core.State;
@@ -38,6 +39,16 @@ public sealed class LogShippingOptions
     public int AlertAfterFailures { get; set; } = 10;
 }
 
+public sealed class AuditsOptions
+{
+    public bool Enabled { get; set; } = true;
+    public CertificateAuditOptions Certificates { get; set; } = new();
+    public BackupAuditOptions Backups { get; set; } = new();
+    public bool Hardening { get; set; } = true;
+    /// <summary>Espera tras arrancar antes de la primera pasada.</summary>
+    public TimeSpan StartDelay { get; set; } = TimeSpan.FromSeconds(30);
+}
+
 public sealed class ResourceLimitsOptions
 {
     public bool Enabled { get; set; } = true;
@@ -60,6 +71,7 @@ public sealed class AgentOptions
     public IntegrityOptions Integrity { get; set; } = new();
     public LogShippingOptions LogShipping { get; set; } = new();
     public ResourceLimitsOptions Limits { get; set; } = new();
+    public AuditsOptions Audits { get; set; } = new();
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(5);
     public TimeSpan MaintenanceInterval { get; set; } = TimeSpan.FromMinutes(10);
 

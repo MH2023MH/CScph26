@@ -13,13 +13,15 @@ public sealed class RuleEngine
 
     private readonly IReadOnlyList<Rule> _rules;
     private readonly Allowlist _allowlist;
+    private readonly DeployWindows _deployWindows;
     private readonly Dictionary<(string RuleId, string Key), Queue<(DateTimeOffset Ts, string Id)>> _windows = new();
     private readonly object _gate = new();
 
-    public RuleEngine(IEnumerable<Rule> rules, Allowlist allowlist)
+    public RuleEngine(IEnumerable<Rule> rules, Allowlist allowlist, DeployWindows? windows = null)
     {
         _rules = rules.ToList();
         _allowlist = allowlist;
+        _deployWindows = windows ?? DeployWindows.None;
     }
 
     public IReadOnlyList<Rule> Rules => _rules;
@@ -31,8 +33,11 @@ public sealed class RuleEngine
         {
             foreach (var rule in _rules)
             {
-                if (rule.Source != ev.Source || !rule.EventTypes.Contains(ev.Type)) continue;
+                if (!rule.AllSources.Contains(ev.Source) || !rule.EventTypes.Contains(ev.Type)) continue;
                 if (rule.ExcludeAllowlist && ev.Ip != null && _allowlist.IsAllowed(ev.Ip)) continue;
+                if (rule.ExcludeDeployWindows && _deployWindows.IsInWindow(ev.Timestamp)) continue;
+                if (rule.AllFilters.Any(f => !f.Matches(ev))) continue;            // todos los filtros deben cumplirse
+                if (rule.AllExcept.Any(f => f.Matches(ev))) continue;              // y ninguna excepción
 
                 var key = rule.GroupBy switch
                 {

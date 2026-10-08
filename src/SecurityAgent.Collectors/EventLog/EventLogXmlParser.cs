@@ -80,6 +80,16 @@ public static class EventLogXmlParser
                 target = N("ServiceName");
                 detail = N("ImagePath", "ImageName");
                 break;
+            case "1" when channel.Contains("Sysmon", StringComparison.OrdinalIgnoreCase):   // creación de proceso
+                actor = N("User");
+                target = N("Image");
+                detail = N("CommandLine");
+                break;
+            case "1116" or "1117" or "1118" or "1119" when channel.Contains("Defender", StringComparison.OrdinalIgnoreCase):   // detección / acción
+                actor = N("Detection User");
+                target = N("Threat Name");
+                detail = N("Path");
+                break;
             default:       // incluye 5002 (WAS: App Pool deshabilitado) y eventos de Defender/Sysmon
                 actor = N("SubjectUserName", "User", "Detection User");
                 target = N("Threat Name", "Path", "TaskName", "ServiceName") ?? positional.FirstOrDefault(p => !string.IsNullOrWhiteSpace(p));

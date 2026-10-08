@@ -1,0 +1,18 @@
+id: SEC-010-TEMP
+nombre: Proceso ejecutado desde una carpeta temporal o pública
+modo: observe
+fuente: sysmon
+condicion:
+  event_id: 1
+  agrupar_por: ninguno
+  umbral: 1
+  ventana: 1m
+  filtros:
+    - campo: objeto
+      contiene: ["\\temp\\", "\\appdata\\local\\temp\\", "\\users\\public\\"]
+  excepto: []                 # completar en la Fase 10 con los instaladores/actualizadores legítimos que aparezcan en observación
+severidad: media
+respuesta:
+  accion: notify
+  notificar: [correo]
+runbook: runbooks/SEC-010-proceso-sospechoso.md

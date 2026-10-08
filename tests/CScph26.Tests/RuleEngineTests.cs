@@ -36,27 +36,27 @@ public class RuleLoadingTests
     }
 
     [Theory]
-    [InlineData("modo: encendido")]                               // modo inválido
-    [InlineData("typo_desconocido: 1")]                           // clave desconocida
-    public void Invalid_rules_are_rejected(string extra) =>
-        Assert.Throws<RuleValidationException>(() => RuleLoader.ParseYaml(Valid + "\n" + extra));
+    [InlineData("modo: encendido", "modo inválido")]
+    [InlineData("typo_desconocido: 1", "YAML inválido")]            // clave desconocida
+    public void Invalid_rules_are_rejected_for_the_right_reason(string extra, string expected) =>
+        Assert.Contains(expected, Assert.Throws<RuleValidationException>(() => RuleLoader.ParseYaml(Valid + "\n" + extra)).Message);
 
     [Fact]
     public void Block_rule_without_allowlist_exclusion_is_rejected() =>
-        Assert.Throws<RuleValidationException>(() => RuleLoader.ParseYaml(Valid.Replace("excluir: [lista_blanca]\n", "")));
+        Assert.Contains("lista_blanca", Assert.Throws<RuleValidationException>(() => RuleLoader.ParseYaml(Valid.Replace("excluir: [lista_blanca]\n", ""))).Message);
 
     [Fact]
     public void Block_rule_requires_duration_and_ip_grouping()
     {
-        Assert.Throws<RuleValidationException>(() => RuleLoader.ParseYaml(Valid.Replace(", duracion: 1h", "")));
-        Assert.Throws<RuleValidationException>(() => RuleLoader.ParseYaml(Valid.Replace("agrupar_por: ip_origen", "agrupar_por: usuario")));
+        Assert.Contains("duracion", Assert.Throws<RuleValidationException>(() => RuleLoader.ParseYaml(Valid.Replace(", duracion: 1h", ""))).Message);
+        Assert.Contains("ip_origen", Assert.Throws<RuleValidationException>(() => RuleLoader.ParseYaml(Valid.Replace("agrupar_por: ip_origen", "agrupar_por: usuario"))).Message);
     }
 
     [Theory]
-    [InlineData("umbral: 3", "umbral: 0")]
-    [InlineData("ventana: 5m", "ventana: 5x")]
-    public void Bad_numbers_are_rejected(string from, string to) =>
-        Assert.Throws<RuleValidationException>(() => RuleLoader.ParseYaml(Valid.Replace(from, to)));
+    [InlineData("umbral: 3", "umbral: 0", "umbral")]
+    [InlineData("ventana: 5m", "ventana: 5x", "ventana")]
+    public void Bad_numbers_are_rejected(string from, string to, string expected) =>
+        Assert.Contains(expected, Assert.Throws<RuleValidationException>(() => RuleLoader.ParseYaml(Valid.Replace(from, to))).Message);
 }
 
 public class AllowlistTests

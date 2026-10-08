@@ -1,0 +1,19 @@
+id: SEC-010
+nombre: PowerShell con comando codificado
+modo: observe
+fuente: sysmon
+condicion:
+  event_id: 1                 # Sysmon: creación de proceso
+  agrupar_por: ninguno
+  umbral: 1
+  ventana: 1m
+  filtros:
+    - campo: objeto
+      contiene: ["powershell.exe", "pwsh.exe"]
+    - campo: detalle
+      regex: '\s-e[a-z]{0,15}\s+[A-Za-z0-9+/=]{20,}'     # -e / -enc / -EncodedCommand seguido de base64 largo
+severidad: media
+respuesta:
+  accion: notify
+  notificar: [correo, teams]
+runbook: runbooks/SEC-010-proceso-sospechoso.md

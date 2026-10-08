@@ -1,0 +1,16 @@
+id: SEC-008
+nombre: Defender detecta malware o se desactiva
+modo: observe
+fuente: defender
+condicion:
+  # 1116 = malware detectado; 1119 = error crítico al actuar; 5001 = protección en tiempo real desactivada;
+  # 5010 / 5012 = análisis de malware / virus desactivado. IDs a confirmar con datos reales en la Fase 8.
+  event_id: [1116, 1119, 5001, 5010, 5012]
+  agrupar_por: ninguno
+  umbral: 1
+  ventana: 1m
+severidad: critica
+respuesta:
+  accion: notify
+  notificar: [correo, teams]
+runbook: runbooks/SEC-008-defender.md

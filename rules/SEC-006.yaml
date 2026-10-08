@@ -1,0 +1,15 @@
+id: SEC-006
+nombre: Cambio en configuración o binarios de D:\Apps fuera de ventana de deploy
+modo: observe
+fuente: fs
+condicion:
+  event_id: [file.created, file.changed, file.deleted, file.renamed, fs.overflow]   # fs.overflow = se perdió visibilidad
+  agrupar_por: objeto
+  umbral: 1
+  ventana: 1m
+severidad: critica
+excluir: [ventanas_deploy]      # ver rules/deploy-windows.yaml
+respuesta:
+  accion: notify
+  notificar: [correo, teams]
+runbook: runbooks/SEC-006-cambio-de-archivos.md
