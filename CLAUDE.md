@@ -1,7 +1,7 @@
 # CScph26 — Agente local de seguridad para srv-copahue2
 
 > Documento base del proyecto. Describe qué es, qué hace, cómo se diseña y en qué orden se
-> construye. Estado: **Fase 2 (estructura base)** — decisiones de Fase 0 cerradas el 2026-10-08; solución .NET creada, aún sin lógica. Creado 2026-10-08.
+> construye. Estado: **Fase 3 completada** (modelo `SecurityEvent` y State Store SQLite) — Fases 0 (decisiones) y 2 listas; siguiente: Fase 4 (motor de reglas). Creado 2026-10-08.
 > Revisado 2026-10-08: el proyecto pasa a ser un **sistema doble** (monitor autónomo + agente IA de consulta).
 
 ---
