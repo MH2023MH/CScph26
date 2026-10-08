@@ -25,7 +25,7 @@ public sealed class SqliteStateStore : IStateStore, IDisposable
         Exec("""
             CREATE TABLE IF NOT EXISTS events(
               id TEXT PRIMARY KEY, ts INTEGER NOT NULL, source TEXT NOT NULL, type TEXT NOT NULL,
-              severity INTEGER NOT NULL, actor TEXT, ip TEXT, target TEXT);
+              severity INTEGER NOT NULL, actor TEXT, ip TEXT, target TEXT, detail TEXT);
             CREATE INDEX IF NOT EXISTS ix_events_ts ON events(ts);
             CREATE INDEX IF NOT EXISTS ix_events_ip ON events(ip);
             CREATE TABLE IF NOT EXISTS blocks(
@@ -34,9 +34,16 @@ public sealed class SqliteStateStore : IStateStore, IDisposable
               id TEXT PRIMARY KEY, rule_id TEXT NOT NULL, ts INTEGER NOT NULL, severity INTEGER NOT NULL,
               group_key TEXT, message TEXT NOT NULL, event_ids TEXT NOT NULL, mode TEXT NOT NULL, action TEXT);
             CREATE INDEX IF NOT EXISTS ix_alerts_ts ON alerts(ts);
+            CREATE TABLE IF NOT EXISTS cursors(name TEXT PRIMARY KEY, value INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS audits(kind TEXT PRIMARY KEY, status TEXT NOT NULL, ts INTEGER NOT NULL, summary TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS rule_state(rule_id TEXT PRIMARY KEY, mode TEXT NOT NULL, updated INTEGER NOT NULL);
             """);
+        // Migración: bases creadas antes de existir la columna 'detail'.
+        using (var c = _db.CreateCommand())
+        {
+            c.CommandText = "SELECT COUNT(*) FROM pragma_table_info('events') WHERE name='detail'";
+            if (Convert.ToInt64(c.ExecuteScalar()) == 0) Exec("ALTER TABLE events ADD COLUMN detail TEXT");
+        }
     }
 
     private long Now => _time.GetUtcNow().ToUnixTimeMilliseconds();
@@ -59,7 +66,7 @@ public sealed class SqliteStateStore : IStateStore, IDisposable
     public void AddEvent(SecurityEvent ev)
     {
         lock (_gate)
-            Exec("INSERT OR REPLACE INTO events(id,ts,source,type,severity,actor,ip,target) VALUES($id,$ts,$s,$t,$sev,$a,$ip,$tg)", c =>
+            Exec("INSERT OR REPLACE INTO events(id,ts,source,type,severity,actor,ip,target,detail) VALUES($id,$ts,$s,$t,$sev,$a,$ip,$tg,$d)", c =>
             {
                 c.Parameters.AddWithValue("$id", ev.Id);
                 c.Parameters.AddWithValue("$ts", ev.Timestamp.ToUnixTimeMilliseconds());
@@ -69,15 +76,17 @@ public sealed class SqliteStateStore : IStateStore, IDisposable
                 c.Parameters.AddWithValue("$a", (object?)ev.Actor ?? DBNull.Value);
                 c.Parameters.AddWithValue("$ip", (object?)ev.Ip ?? DBNull.Value);
                 c.Parameters.AddWithValue("$tg", (object?)ev.Target ?? DBNull.Value);
+                c.Parameters.AddWithValue("$d", (object?)ev.Detail ?? DBNull.Value);
             });
     }
 
     private static SecurityEvent ReadEvent(SqliteDataReader r) => new(
         r.GetString(0), DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(1)), r.GetString(2), r.GetString(3),
         (Severity)r.GetInt32(4),
-        r.IsDBNull(5) ? null : r.GetString(5), r.IsDBNull(6) ? null : r.GetString(6), r.IsDBNull(7) ? null : r.GetString(7));
+        r.IsDBNull(5) ? null : r.GetString(5), r.IsDBNull(6) ? null : r.GetString(6), r.IsDBNull(7) ? null : r.GetString(7),
+        r.IsDBNull(8) ? null : r.GetString(8));
 
-    private const string EventCols = "id,ts,source,type,severity,actor,ip,target";
+    private const string EventCols = "id,ts,source,type,severity,actor,ip,target,detail";
 
     public SecurityEvent? GetEvent(string id)
     {
@@ -219,6 +228,27 @@ public sealed class SqliteStateStore : IStateStore, IDisposable
             while (r.Read()) list.Add(ReadAlert(r));
             return list;
         }
+    }
+
+    public long? GetCursor(string name)
+    {
+        lock (_gate)
+        {
+            using var c = _db.CreateCommand();
+            c.CommandText = "SELECT value FROM cursors WHERE name=$n";
+            c.Parameters.AddWithValue("$n", name);
+            return c.ExecuteScalar() is long v ? v : null;
+        }
+    }
+
+    public void SetCursor(string name, long value)
+    {
+        lock (_gate)
+            Exec("INSERT OR REPLACE INTO cursors(name,value) VALUES($n,$v)", c =>
+            {
+                c.Parameters.AddWithValue("$n", name);
+                c.Parameters.AddWithValue("$v", value);
+            });
     }
 
     public void SetAudit(AuditEntry a)

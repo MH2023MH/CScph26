@@ -9,6 +9,7 @@ public enum Severity { Info = 0, Baja = 1, Media = 2, Alta = 3, Critica = 4 }
 /// <param name="Actor">Usuario o cuenta involucrada (texto externo: no confiable).</param>
 /// <param name="Ip">IP de origen en texto, si existe.</param>
 /// <param name="Target">Objeto afectado: archivo, servicio, App Pool, etc. (texto externo: no confiable).</param>
+/// <param name="Detail">Dato adicional libre (método+estado+agente HTTP, ruta del ejecutable, etc.). Texto externo: no confiable.</param>
 public sealed record SecurityEvent(
     string Id,
     DateTimeOffset Timestamp,
@@ -17,4 +18,5 @@ public sealed record SecurityEvent(
     Severity Severity,
     string? Actor = null,
     string? Ip = null,
-    string? Target = null);
+    string? Target = null,
+    string? Detail = null);

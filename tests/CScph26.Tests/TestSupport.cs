@@ -46,3 +46,24 @@ internal sealed class FakeFirewall : IFirewall
         Unblocked.Add(ip);
     }
 }
+
+internal sealed class XmlFixtureEventSource(string dir) : SecurityAgent.Collectors.EventLog.IEventRecordSource
+{
+    public static string RawDir => Path.Combine(TestSupport.RepoRoot(), "tests", "fixtures", "events", "raw");
+
+    private List<SecurityAgent.Collectors.EventLog.RawEventRecord> Load(string channel)
+    {
+        var path = Path.Combine(dir, channel.Replace('/', '_') + ".xml");
+        if (!File.Exists(path)) return new();
+        return System.Xml.Linq.XDocument.Load(path).Root!.Elements()
+            .Select(e => e.ToString())
+            .Select(x => new SecurityAgent.Collectors.EventLog.RawEventRecord(
+                SecurityAgent.Collectors.EventLog.EventLogXmlParser.RecordIdOf(x) ?? 0, x))
+            .OrderBy(r => r.RecordId).ToList();
+    }
+
+    public IReadOnlyList<SecurityAgent.Collectors.EventLog.RawEventRecord> Read(string channel, long afterRecordId, int max) =>
+        Load(channel).Where(r => r.RecordId > afterRecordId).Take(max).ToList();
+
+    public long LatestRecordId(string channel) => Load(channel).Select(r => r.RecordId).DefaultIfEmpty(0).Max();
+}

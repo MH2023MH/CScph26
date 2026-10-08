@@ -1,7 +1,7 @@
 # CScph26 — Agente local de seguridad para srv-copahue2
 
 > Documento base del proyecto. Describe qué es, qué hace, cómo se diseña y en qué orden se
-> construye. Estado: **Fase 5 completada** (notificaciones y API de estado de solo lectura). Siguiente: Fase 6 (collectors). Creado 2026-10-08.
+> construye. Estado: **Fase 6 completada** (collectors y reglas SEC-001/003/005 de extremo a extremo; Worker compuesto). Siguiente: Fase 7 (instalador, integridad, logs externos). Creado 2026-10-08.
 > Revisado 2026-10-08: el proyecto pasa a ser un **sistema doble** (monitor autónomo + agente IA de consulta).
 
 ---

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Events>
+  <Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+    <System>
+      <Provider Name="Service Control Manager" Guid="{555908d1-a6d7-4695-8e1e-26931d2012f4}" />
+      <EventID>7045</EventID>
+      <Version>0</Version>
+      <Level>4</Level>
+      <TimeCreated SystemTime="2026-10-08T05:00:00.0000000Z" />
+      <EventRecordID>5001</EventRecordID>
+      <Execution ProcessID="632" ThreadID="1234" />
+      <Channel>System</Channel>
+      <Computer>srv-copahue2</Computer>
+    </System>
+    <EventData><Data Name="ServiceName">UpdaterSvc</Data><Data Name="ImagePath">C:\Users\Public\upd.exe</Data><Data Name="ServiceType">user mode service</Data><Data Name="StartType">auto start</Data><Data Name="AccountName">LocalSystem</Data></EventData>
+  </Event>
+  <Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+    <System>
+      <Provider Name="Microsoft-Windows-WAS" Guid="{524B5D04-133C-4A62-8362-64E8EDB9CE40}" />
+      <EventID>5002</EventID>
+      <Version>0</Version>
+      <Level>2</Level>
+      <TimeCreated SystemTime="2026-10-08T06:00:00.0000000Z" />
+      <EventRecordID>5002</EventRecordID>
+      <Execution ProcessID="632" ThreadID="1234" />
+      <Channel>System</Channel>
+      <Computer>srv-copahue2</Computer>
+    </System>
+    <EventData><Data>AppPoolDemo</Data></EventData>
+  </Event>
+  <Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+    <System>
+      <Provider Name="Microsoft-Windows-WAS" Guid="{524B5D04-133C-4A62-8362-64E8EDB9CE40}" />
+      <EventID>5002</EventID>
+      <Version>0</Version>
+      <Level>2</Level>
+      <TimeCreated SystemTime="2026-10-08T06:02:00.0000000Z" />
+      <EventRecordID>5003</EventRecordID>
+      <Execution ProcessID="632" ThreadID="1234" />
+      <Channel>System</Channel>
+      <Computer>srv-copahue2</Computer>
+    </System>
+    <EventData><Data>AppPoolDemo</Data></EventData>
+  </Event>
+  <Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+    <System>
+      <Provider Name="Microsoft-Windows-WAS" Guid="{524B5D04-133C-4A62-8362-64E8EDB9CE40}" />
+      <EventID>5002</EventID>
+      <Version>0</Version>
+      <Level>2</Level>
+      <TimeCreated SystemTime="2026-10-08T06:04:00.0000000Z" />
+      <EventRecordID>5004</EventRecordID>
+      <Execution ProcessID="632" ThreadID="1234" />
+      <Channel>System</Channel>
+      <Computer>srv-copahue2</Computer>
+    </System>
+    <EventData><Data>AppPoolDemo</Data></EventData>
+  </Event>
+</Events>

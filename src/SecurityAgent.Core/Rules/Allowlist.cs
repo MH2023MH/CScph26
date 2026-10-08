@@ -51,6 +51,7 @@ public sealed class Allowlist
     {
         if (string.IsNullOrWhiteSpace(ip) || !IPAddress.TryParse(ip.Trim(), out var addr)) return true;
         if (addr.IsIPv4MappedToIPv6) addr = addr.MapToIPv4();
+        if (IPAddress.IsLoopback(addr)) return true;   // el propio servidor nunca se bloquea, aunque la lista no lo diga
         var bytes = addr.GetAddressBytes();
         foreach (var (net, prefix) in _ranges)
         {

@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.*" />
   </ItemGroup>
 
   <ItemGroup>
@@ -17,4 +18,9 @@
     <ProjectReference Include="..\SecurityAgent.Responders\SecurityAgent.Responders.csproj" />
     <ProjectReference Include="..\SecurityAgent.StatusApi\SecurityAgent.StatusApi.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Las reglas viajan junto al binario (rules\*.yaml) -->
+    <Content Include="..\..\rules\*.yaml" Link="rules\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

@@ -82,5 +82,5 @@ public sealed class StatusService
         Sanitizer.Clean(a.ActionTaken, 300));
 
     private static EventDto ToDto(SecurityEvent e) => new(e.Id, e.Timestamp, Sanitizer.Clean(e.Source)!, Sanitizer.Clean(e.Type)!,
-        e.Severity.ToString().ToLowerInvariant(), Sanitizer.Clean(e.Actor), Sanitizer.CleanIp(e.Ip), Sanitizer.Clean(e.Target));
+        e.Severity.ToString().ToLowerInvariant(), Sanitizer.Clean(e.Actor), Sanitizer.CleanIp(e.Ip), Sanitizer.Clean(e.Target), Sanitizer.Clean(e.Detail, 300));
 }

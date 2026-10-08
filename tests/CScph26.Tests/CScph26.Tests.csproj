@@ -31,6 +31,7 @@
     <ProjectReference Include="..\..\src\SecurityAgent.StatusApi\SecurityAgent.StatusApi.csproj" />
     <ProjectReference Include="..\..\src\SecurityAdvisor\SecurityAdvisor.csproj" />
     <ProjectReference Include="..\..\src\SecurityAgent.StatusContract\SecurityAgent.StatusContract.csproj" />
+    <ProjectReference Include="..\..\src\SecurityAgent.Worker\SecurityAgent.Worker.csproj" />
   </ItemGroup>
 
 </Project>

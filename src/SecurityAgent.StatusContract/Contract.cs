@@ -29,7 +29,7 @@ public sealed record AuditEntryDto(string Status, DateTimeOffset? CheckedAt, str
 public sealed record AuditSummaryDto(AuditEntryDto Hardening, AuditEntryDto Certificates, AuditEntryDto Backups);
 
 public sealed record EventDto(
-    string Id, DateTimeOffset Timestamp, string Source, string Type, string Severity, string? Actor, string? Ip, string? Target);
+    string Id, DateTimeOffset Timestamp, string Source, string Type, string Severity, string? Actor, string? Ip, string? Target, string? Detail = null);
 
 /// <summary>Kind: "event" o "alert".</summary>
 public sealed record EventDetailDto(string Kind, EventDto? Event, AlertDto? Alert);

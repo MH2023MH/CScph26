@@ -36,6 +36,10 @@ public interface IStateStore
     Alert? GetAlert(string id);
     IReadOnlyList<Alert> ListAlerts(DateTimeOffset? since = null, string? ruleId = null, Severity? minSeverity = null, int limit = 100);
 
+    /// <summary>Posición de lectura de un collector (offset de archivo, último RecordId...). Sobrevive a reinicios.</summary>
+    long? GetCursor(string name);
+    void SetCursor(string name, long value);
+
     void SetAudit(AuditEntry audit);
     AuditEntry? GetAudit(string kind);
 
