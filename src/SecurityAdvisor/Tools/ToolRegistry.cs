@@ -53,7 +53,7 @@ public sealed class ToolRegistry(StatusApiClient api, Redactor redactor)
             {
                 var r = await api.ListAlertsAsync(Str("rule"), Str("severity"), Str("ip"), Str("since"), Int("limit"), ct);
                 if (r.Ok) r = r with { Value = r.Value! with { Items = r.Value.Items.Select(redactor.Apply).ToList() } };
-                return Build(call.Name, r, v => v.Items.SelectMany(a => new[] { a.Id, a.RuleId }.Concat(a.EventIds).Concat(a.GroupKey is null ? Array.Empty<string>() : new[] { a.GroupKey })),
+                return Build(call.Name, r, v => v.Items.SelectMany(a => new[] { a.Id, a.RuleId }.Concat(a.EventIds).Concat(a.GroupKey is { } g && IsIpOrMasked(g) ? new[] { g } : Array.Empty<string>())),
                     v => v.Items.Count > 0);
             }
             case "list_blocks":
@@ -89,6 +89,10 @@ public sealed class ToolRegistry(StatusApiClient api, Redactor redactor)
                 return Invalid(call.Name, $"la herramienta '{call.Name}' no existe; solo hay: {string.Join(", ", ToolNames)}");
         }
     }
+
+    /// <summary>La clave de grupo de una alerta puede ser texto del atacante (usuario, ruta...). Solo una IP (o su versión enmascarada) es citable.</summary>
+    private static bool IsIpOrMasked(string s) =>
+        System.Net.IPAddress.TryParse(s, out _) || System.Text.RegularExpressions.Regex.IsMatch(s, @"^(\d{1,3}\.){3}x$");
 
     private static ToolResult Invalid(string name, string error) =>
         new(name, false, false, JsonSerializer.Serialize(new { error }), new HashSet<string>(), error);

@@ -26,16 +26,22 @@ internal sealed class AdvisorHarness : IAsyncDisposable
     public WebApplication App { get; private set; } = null!;
     public HttpClient Http { get; private set; } = null!;
     public StatusApiClient Api { get; private set; } = null!;
-    public Heartbeat Heartbeat { get; } = new();
+    public Heartbeat Heartbeat { get; }
+    public TimeProvider Time { get; }
 
-    public AdvisorHarness() => Store = new(new StateStoreOptions { DatabasePath = Path.Combine(_dir, "agent.db") });
-
-    public static async Task<AdvisorHarness> StartAsync(Action<SqliteStateStore>? seed = null)
+    public AdvisorHarness(TimeProvider? time = null)
     {
-        var h = new AdvisorHarness();
+        Time = time ?? TimeProvider.System;
+        Heartbeat = new Heartbeat(Time);
+        Store = new(new StateStoreOptions { DatabasePath = Path.Combine(_dir, "agent.db") });
+    }
+
+    public static async Task<AdvisorHarness> StartAsync(Action<SqliteStateStore>? seed = null, TimeProvider? time = null)
+    {
+        var h = new AdvisorHarness(time);
         (seed ?? Seed)(h.Store);
         h.Heartbeat.Beat();
-        var service = new StatusService(h.Store, RuleLoader.LoadDirectory(TestSupport.RulesDir), h.Heartbeat, version: "test");
+        var service = new StatusService(h.Store, RuleLoader.LoadDirectory(TestSupport.RulesDir), h.Heartbeat, h.Time, version: "test");
         var b = WebApplication.CreateBuilder();
         b.WebHost.UseTestServer();
         h.App = b.Build();

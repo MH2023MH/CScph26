@@ -38,9 +38,12 @@ if (eval >= 0 && eval + 1 < args.Length)
     return report.Score >= minScore ? 0 : 3;
 }
 
+var watcher = new HeartbeatWatcher(api);
 var ask = Array.IndexOf(args, "--ask");
 if (ask >= 0 && ask + 1 < args.Length)
 {
+    var beat = await watcher.CheckAsync();
+    if (!beat.Healthy) Console.WriteLine(beat.Describe() + "\n");
     var one = await agent.AskAsync(args[ask + 1]);
     Console.WriteLine(one.Text);
     return 0;
@@ -53,7 +56,12 @@ while (true)
     var line = Console.ReadLine();
     if (line is null || line.Trim().Equals("salir", StringComparison.OrdinalIgnoreCase)) break;
     if (string.IsNullOrWhiteSpace(line)) continue;
-    try { Console.WriteLine((await agent.AskAsync(line)).Text); }
+    try
+    {
+        var beat = await watcher.CheckAsync();
+        if (!beat.Healthy) Console.WriteLine(beat.Describe());
+        Console.WriteLine((await agent.AskAsync(line)).Text);
+    }
     catch (Exception e) when (e is HttpRequestException or TaskCanceledException or InvalidOperationException)
     { Console.WriteLine($"No pude consultar al modelo: {e.Message}"); }
     Console.WriteLine();

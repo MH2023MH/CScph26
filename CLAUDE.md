@@ -1,7 +1,7 @@
 # CScph26 — Agente local de seguridad para srv-copahue2
 
 > Documento base del proyecto. Describe qué es, qué hace, cómo se diseña y en qué orden se
-> construye. Estado: **Fases 2–7, 9 y 11 completadas en código** (compuertas 1, 8 y 10, destino de logs y equipo del modelo pendientes de personas; ver §10). Siguiente autónoma: Fase 12 (endurecimiento del sistema 2). Creado 2026-10-08.
+> construye. Estado: **todas las fases autónomas (2–7, 9, 11, 12) completadas en código**; quedan las compuertas humanas 1, 8, 10 y las pendientes de la 7 y la 11 (ver «Estado actual» en §9). Creado 2026-10-08.
 > Revisado 2026-10-08: el proyecto pasa a ser un **sistema doble** (monitor autónomo + agente IA de consulta).
 
 ---
@@ -251,6 +251,19 @@ Cada fase tiene un **tipo**, un **criterio de salida** verificable y sus **depen
 | 11 | **Sistema 2:** SecurityAdvisor, herramientas de lectura sobre la API de estado, interfaz de consulta (consola/web local), respuestas con citas | Autónoma (código y pruebas contra la API simulada) + Compuerta (equipo del modelo, §10) | Las preguntas de un conjunto de prueba se responden con las consultas correctas y citan IDs; ante falta de datos responde "no hay información"; no existe ninguna herramienta de escritura | 5 (API); equipo/hardware del modelo |
 | 12 | Endurecimiento del sistema 2: pruebas de inyección de prompts con logs hostiles simulados, evaluación de calidad, verificación de latido | Autónoma | Un conjunto de logs hostiles no consigue que el modelo ignore sus reglas ni invoque algo fuera de la lista de consultas; evaluación de respuestas por encima del umbral acordado | 11 |
 | 13 (opcional) | Resúmenes proactivos diarios/semanales; dashboard local de solo lectura; evaluar Wazuh si crece la infraestructura | Opcional | A definir si se decide hacerlo | 8, 11 |
+
+### Estado actual (2026-10-08)
+
+| Fase | Estado | Qué falta |
+|---|---|---|
+| 0 | Decisiones cerradas (servicio, carpeta, lista blanca provisional, canal, alcance) | Lista blanca definitiva (IPs de administración, Cloudflare), destinatarios |
+| 1 | **Pendiente — compuerta** | Acceso administrador a srv-copahue2; CIS-CAT; edición de Windows/SQL |
+| 2–6 | Hechas y probadas (CI en verde) | — |
+| 7 | Código hecho y probado; **scripts de despliegue sin probar en Windows** | VM de prueba para `deploy/`; destino de logs externos; decisión de privilegios para bloquear |
+| 8 | **Pendiente — compuerta** | Servidor, credenciales SMTP/Teams, Sysmon, ventana de instalación |
+| 9 | Hecha en código y pruebas; validación real depende de la Fase 8 | Ventanas de deploy, ubicación de respaldos, IDs de Defender con datos reales |
+| 10 | **Pendiente — compuerta** (nunca automática) | Observación, informe de falsos positivos, aprobación por regla (`--set-mode`) |
+| 11–12 | Hechas y probadas contra la API real con un modelo simulado | Equipo y modelo reales; ejecutar `--eval` con el modelo y fijar el umbral de calidad |
 
 ### Lectura del plan
 
