@@ -18,6 +18,9 @@ public static class AuditKinds
 /// <summary>Resultado de una auditoría periódica (la escribe el Scheduler; la API de estado la lee).</summary>
 public sealed record AuditEntry(string Kind, string Status, DateTimeOffset CheckedAt, string Summary);
 
+/// <summary>Elemento con su posición (rowid) en el State Store; sirve de cursor para el envío de logs al exterior.</summary>
+public sealed record Stored<T>(long RowId, T Item);
+
 public sealed record PurgeResult(int EventsDeleted, int BlocksDeleted);
 
 public interface IStateStore
@@ -25,6 +28,10 @@ public interface IStateStore
     void AddEvent(SecurityEvent ev);
     SecurityEvent? GetEvent(string id);
     IReadOnlyList<SecurityEvent> QueryEvents(DateTimeOffset? since = null, string? source = null, string? ip = null, int limit = 100);
+
+    /// <summary>Eventos con rowid &gt; afterRowId, en orden de inserción (para enviarlos fuera del servidor).</summary>
+    IReadOnlyList<Stored<SecurityEvent>> EventsAfter(long afterRowId, int limit);
+    IReadOnlyList<Stored<Alert>> AlertsAfter(long afterRowId, int limit);
 
     void AddBlock(BlockEntry block);
     IReadOnlyList<BlockEntry> ListActiveBlocks();

@@ -7,3 +7,4 @@ TestResults/
 appsettings.Production.json
 *.pfx
 agent.db*
+publish/

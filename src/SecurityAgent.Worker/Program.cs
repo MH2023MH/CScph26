@@ -1,10 +1,17 @@
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SecurityAgent.StatusApi;
 using SecurityAgent.Worker;
+
+// Órdenes del instalador (--make-manifest / --verify-manifest): se ejecutan y salen sin arrancar el servicio.
+var cliConfig = new ConfigurationBuilder().SetBasePath(AppContext.BaseDirectory)
+    .AddJsonFile("appsettings.json", optional: true).AddJsonFile("appsettings.Production.json", optional: true)
+    .AddEnvironmentVariables().Build();
+if (Cli.TryRun(args, AppContext.BaseDirectory, cliConfig, Console.Out) is { } exitCode) return exitCode;
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = args, ContentRootPath = AppContext.BaseDirectory });
 builder.Services.AddWindowsService(o => o.ServiceName = "SecurityAgent");
@@ -21,4 +28,6 @@ if (string.IsNullOrWhiteSpace(options.StatusApi.Token))
 else
     app.MapStatusApi(app.Services.GetRequiredService<StatusService>(), options.StatusApi);
 
+ResourceGovernor.Apply(options.Limits, app.Logger);
 app.Run();
+return 0;

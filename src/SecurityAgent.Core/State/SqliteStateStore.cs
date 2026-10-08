@@ -117,6 +117,36 @@ public sealed class SqliteStateStore : IStateStore, IDisposable
         }
     }
 
+    public IReadOnlyList<Stored<SecurityEvent>> EventsAfter(long afterRowId, int limit)
+    {
+        lock (_gate)
+        {
+            using var c = _db.CreateCommand();
+            c.CommandText = $"SELECT {EventCols},rowid FROM events WHERE rowid>$r ORDER BY rowid LIMIT $lim";
+            c.Parameters.AddWithValue("$r", afterRowId);
+            c.Parameters.AddWithValue("$lim", Math.Clamp(limit, 1, 10_000));
+            using var r = c.ExecuteReader();
+            var list = new List<Stored<SecurityEvent>>();
+            while (r.Read()) list.Add(new(r.GetInt64(9), ReadEvent(r)));
+            return list;
+        }
+    }
+
+    public IReadOnlyList<Stored<Alert>> AlertsAfter(long afterRowId, int limit)
+    {
+        lock (_gate)
+        {
+            using var c = _db.CreateCommand();
+            c.CommandText = $"SELECT {AlertCols},rowid FROM alerts WHERE rowid>$r ORDER BY rowid LIMIT $lim";
+            c.Parameters.AddWithValue("$r", afterRowId);
+            c.Parameters.AddWithValue("$lim", Math.Clamp(limit, 1, 10_000));
+            using var r = c.ExecuteReader();
+            var list = new List<Stored<Alert>>();
+            while (r.Read()) list.Add(new(r.GetInt64(9), ReadAlert(r)));
+            return list;
+        }
+    }
+
     public void AddBlock(BlockEntry b)
     {
         if (b.ExpiresAt <= b.CreatedAt)

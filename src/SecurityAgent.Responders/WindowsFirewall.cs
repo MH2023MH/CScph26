@@ -28,17 +28,34 @@ public sealed class WindowsFirewall : IFirewall
         return new[] { "advfirewall", "firewall", "delete", "rule", $"name={RuleName(ip)}" };
     }
 
-    public void BlockIp(string ip, string ruleName) => RunNetsh(BuildAddArgs(ip));
+    public static string[] BuildShowArgs(string ip)
+    {
+        ip = Validate(ip);
+        return new[] { "advfirewall", "firewall", "show", "rule", $"name={RuleName(ip)}" };
+    }
 
-    public void UnblockIp(string ip) => RunNetsh(BuildDeleteArgs(ip));
+    public void BlockIp(string ip, string ruleName)
+    {
+        var (code, output) = RunNetsh(BuildAddArgs(ip));
+        if (code != 0) throw new InvalidOperationException($"netsh falló ({code}): {output.Trim()}");
+    }
 
-    private static void RunNetsh(string[] args)
+    /// <summary>Idempotente: si la regla no existe (ya retirada) no es un error.</summary>
+    public void UnblockIp(string ip)
+    {
+        if (RunNetsh(BuildShowArgs(ip)).Code != 0) return;       // netsh devuelve 1 si no hay reglas con ese nombre
+        var (code, output) = RunNetsh(BuildDeleteArgs(ip));
+        if (code != 0) throw new InvalidOperationException($"netsh falló ({code}): {output.Trim()}");
+    }
+
+    private static (int Code, string Output) RunNetsh(string[] args)
     {
         var psi = new ProcessStartInfo("netsh") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
         foreach (var a in args) psi.ArgumentList.Add(a);
         using var p = Process.Start(psi) ?? throw new InvalidOperationException("No se pudo iniciar netsh");
-        p.WaitForExit(15_000);
-        if (!p.HasExited) { p.Kill(); throw new TimeoutException("netsh no respondió"); }
-        if (p.ExitCode != 0) throw new InvalidOperationException($"netsh falló ({p.ExitCode}): {p.StandardOutput.ReadToEnd()}");
+        var stdout = p.StandardOutput.ReadToEndAsync();
+        var stderr = p.StandardError.ReadToEndAsync();
+        if (!p.WaitForExit(15_000)) { p.Kill(); throw new TimeoutException("netsh no respondió"); }
+        return (p.ExitCode, stdout.Result + stderr.Result);
     }
 }

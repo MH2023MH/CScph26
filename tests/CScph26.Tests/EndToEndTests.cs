@@ -16,7 +16,7 @@ public sealed class EndToEndTests : IDisposable
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "cscph26-" + Guid.NewGuid().ToString("N"));
     private readonly FakeFirewall _fw = new();
 
-    private ServiceProvider Build(string? rulesDir = null)
+    private ServiceProvider Build(string? rulesDir = null, Dictionary<string, string?>? extra = null)
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
@@ -25,7 +25,7 @@ public sealed class EndToEndTests : IDisposable
             ["SecurityAgent:Collectors:EventLog:StartPolicy"] = "FromStart",
             ["SecurityAgent:Collectors:EventLog:Channels:0"] = "Security",
             ["SecurityAgent:Collectors:EventLog:Channels:1"] = "System",
-        }).Build();
+        }.Concat(extra ?? new()).ToDictionary(k => k.Key, v => v.Value)).Build();
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<IEventRecordSource>(new XmlFixtureEventSource(XmlFixtureEventSource.RawDir));
@@ -62,6 +62,34 @@ public sealed class EndToEndTests : IDisposable
         // el latido avanzó y el estado refleja modo observe
         Assert.NotNull(sp.GetRequiredService<Heartbeat>().LastBeat);
         Assert.All(sp.GetRequiredService<StatusService>().GetStatus().Rules, r => Assert.Equal("observe", r.Mode));
+    }
+
+    [Fact]
+    public async Task Alerts_reach_the_external_log_destination_and_status_reports_it()
+    {
+        var share = Path.Combine(_dir, "share", "{date}.jsonl");
+        using var sp = Build(extra: new()
+        {
+            ["SecurityAgent:LogShipping:Enabled"] = "true",
+            ["SecurityAgent:LogShipping:File:Path"] = share,
+        });
+        await sp.GetRequiredService<CollectorRunner>().RunOnceAsync();
+
+        var shipper = sp.GetRequiredService<LogShipperHolder>().Shipper;
+        Assert.NotNull(shipper);
+        Assert.True(await shipper!.ShipOnceAsync() > 0);
+        var text = string.Join("\n", Directory.GetFiles(Path.Combine(_dir, "share")).SelectMany(File.ReadAllLines));
+        Assert.Contains("\"rule_id\":\"SEC-001\"", text);
+        Assert.Contains("\"rule_id\":\"SEC-003\"", text);
+        Assert.Contains("agent_status", text);
+    }
+
+    [Fact]
+    public void Without_a_destination_shipping_is_disabled_and_visible_in_status()
+    {
+        using var sp = Build();
+        Assert.Null(sp.GetRequiredService<LogShipperHolder>().Shipper);
+        Assert.Equal("disabled", sp.GetRequiredService<StatusService>().GetStatus().LogShipping);
     }
 
     [Fact]

@@ -14,14 +14,16 @@ public sealed class StatusService
     private readonly IStateStore _store;
     private readonly IReadOnlyList<Rule> _rules;
     private readonly Heartbeat _heartbeat;
+    private readonly AgentHealth _health;
     private readonly TimeProvider _time;
     private readonly string _version;
 
-    public StatusService(IStateStore store, IReadOnlyList<Rule> rules, Heartbeat heartbeat, TimeProvider? time = null, string? version = null)
+    public StatusService(IStateStore store, IReadOnlyList<Rule> rules, Heartbeat heartbeat, TimeProvider? time = null, string? version = null, AgentHealth? health = null)
     {
         _store = store;
         _rules = rules;
         _heartbeat = heartbeat;
+        _health = health ?? new AgentHealth();
         _time = time ?? TimeProvider.System;
         _version = version ?? typeof(StatusService).Assembly.GetName().Version?.ToString() ?? "0.0.0";
     }
@@ -32,7 +34,7 @@ public sealed class StatusService
         var beat = _heartbeat.LastBeat;
         return new StatusDto(_version, now, _heartbeat.StartedAt, beat, beat is null ? null : (now - beat.Value).TotalSeconds,
             _rules.Select(r => new RuleStatusDto(r.Id, Sanitizer.Clean(r.Name)!, RuleModes.Effective(r, _store).ToString().ToLowerInvariant(),
-                r.FileMode.ToString().ToLowerInvariant())).ToList());
+                r.FileMode.ToString().ToLowerInvariant())).ToList(), _health.LogShipping, _health.Integrity);
     }
 
     public ListDto<AlertDto> ListAlerts(DateTimeOffset? since, string? ruleId, Severity? minSeverity, string? ip, int limit)

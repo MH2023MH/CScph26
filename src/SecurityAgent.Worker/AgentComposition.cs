@@ -8,6 +8,7 @@ using SecurityAgent.Collectors.Files;
 using SecurityAgent.Core.Rules;
 using SecurityAgent.Core.State;
 using SecurityAgent.Responders;
+using SecurityAgent.Responders.LogShipping;
 using SecurityAgent.Responders.Notifications;
 using SecurityAgent.StatusApi;
 
@@ -48,6 +49,11 @@ public static class AgentComposition
         s.AddSingleton(sp => new NotificationDispatcher(sp.GetRequiredService<IEnumerable<IAlertNotifier>>(),
             sp.GetRequiredService<ILoggerFactory>().CreateLogger("Notifications")));
         s.AddSingleton<SecurityPipeline>();
+        s.AddSingleton(new AgentHealth());
+        s.AddSingleton(sp => new SystemAlertPublisher(sp.GetRequiredService<IStateStore>(), sp.GetRequiredService<NotificationDispatcher>(),
+            sp.GetRequiredService<TimeProvider>()));
+        s.AddSingleton<IntegrityMonitor>();
+        s.AddSingleton(sp => new LogShipperHolder(BuildShipper(sp, o)));
 
         if (OperatingSystem.IsWindows())
             s.TryAddSingleton<IEventRecordSource>(_ => OperatingSystem.IsWindows()
@@ -56,11 +62,34 @@ public static class AgentComposition
         s.AddSingleton<IEnumerable<ICollector>>(sp => BuildCollectors(sp, o));
 
         s.AddSingleton(sp => new StatusService(sp.GetRequiredService<IStateStore>(), sp.GetRequiredService<IReadOnlyList<Rule>>(),
-            sp.GetRequiredService<Heartbeat>(), sp.GetRequiredService<TimeProvider>()));
+            sp.GetRequiredService<Heartbeat>(), sp.GetRequiredService<TimeProvider>(), null, sp.GetRequiredService<AgentHealth>()));
         s.AddSingleton<CollectorRunner>();
         s.AddHostedService<CollectorService>();
         s.AddHostedService<MaintenanceService>();
+        s.AddHostedService<IntegrityService>();
+        s.AddHostedService<LogShipperService>();
         return s;
+    }
+
+    /// <summary>null = sin destino configurado (envío deshabilitado y visible como tal en la API de estado).</summary>
+    private static LogShipper? BuildShipper(IServiceProvider sp, AgentOptions o)
+    {
+        var cfg = o.LogShipping;
+        if (!cfg.Enabled) return null;
+        ILogSink? sink = cfg.Http.Url != "" ? new HttpLogSink(sp.GetRequiredService<HttpClient>(), cfg.Http)
+                       : cfg.File.Path != "" ? new FileLogSink(cfg.File, sp.GetRequiredService<TimeProvider>())
+                       : null;
+        if (sink is null) return null;
+        var monitor = sp.GetRequiredService<IntegrityMonitor>();
+        var health = sp.GetRequiredService<AgentHealth>();
+        return new LogShipper(sp.GetRequiredService<IStateStore>(), sink, cfg.Shipper, sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILoggerFactory>().CreateLogger("LogShipper"),
+            () => new Dictionary<string, string?>
+            {
+                ["version"] = typeof(AgentComposition).Assembly.GetName().Version?.ToString(),
+                ["manifest_sha256"] = monitor.ManifestSha256,
+                ["integrity"] = health.Integrity,
+            });
     }
 
     private static List<ICollector> BuildCollectors(IServiceProvider sp, AgentOptions o)
