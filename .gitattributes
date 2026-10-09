@@ -1,0 +1,6 @@
+# Finales de línea deterministas: las pruebas y los scripts no deben depender del autocrlf de cada equipo.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.dll binary
+*.exe binary
+*.zip binary

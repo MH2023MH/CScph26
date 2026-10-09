@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 #Requires -RunAsAdministrator
 <#
 .SYNOPSIS
@@ -80,7 +80,7 @@ function Show-Diagnostics {
     if (Test-Path $install) { Get-ChildItem $install | Select-Object Name, Length | Format-Table -AutoSize }
 }
 
-try {
+function Invoke-Flow {
     # ------------------------------------------------------------------ Preparación
     Step 'Preparación'
     if (Test-Path $WorkDir) { Remove-Item $WorkDir -Recurse -Force }
@@ -236,17 +236,18 @@ try {
     Check (@(Get-LocalGroupMember -SID 'S-1-5-32-573' -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*\$ServiceName" }).Count -eq 0) 'se retiró la cuenta de Event Log Readers'
     Check (Test-Path (Join-Path $install 'data\agent.db')) 'la base de datos se conserva (sin -RemoveFiles)'
 }
+
+try { Invoke-Flow }
 catch {
     Write-Host "EXCEPCIÓN: $($_.Exception.Message)" -ForegroundColor Red
     Write-Host $_.ScriptStackTrace
     $script:failures.Add("excepción: $($_.Exception.Message)")
 }
-finally {
-    if ($script:failures.Count -gt 0) { Show-Diagnostics }
-    # limpieza best-effort por si el flujo se interrumpió
-    & net.exe user cscph26ci /delete 2>$null | Out-Null
-    & sc.exe delete CScph26CiSvc 2>$null | Out-Null
-}
+
+if ($script:failures.Count -gt 0) { Show-Diagnostics }
+# limpieza best-effort por si el flujo se interrumpió
+& net.exe user cscph26ci /delete 2>$null | Out-Null
+& sc.exe delete CScph26CiSvc 2>$null | Out-Null
 
 Write-Host ""
 if ($script:failures.Count -eq 0) { Write-Host "TODAS LAS COMPROBACIONES PASARON" -ForegroundColor Green; exit 0 }

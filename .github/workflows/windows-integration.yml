@@ -27,6 +27,17 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validar la sintaxis de los .ps1 con Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $bad = 0
+          Get-ChildItem deploy -Recurse -Filter *.ps1 | ForEach-Object {
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$null, [ref]$errors)
+            if ($errors.Count -gt 0) { $bad++; Write-Host "ERROR $($_.FullName)"; $errors | ForEach-Object { Write-Host "   línea $($_.Extent.StartLineNumber): $($_.Message)" } }
+            else { Write-Host "OK    $($_.FullName)" }
+          }
+          if ($bad -gt 0) { exit 1 }
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
@@ -43,6 +54,17 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validar la sintaxis de los .ps1 con Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $bad = 0
+          Get-ChildItem deploy -Recurse -Filter *.ps1 | ForEach-Object {
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$null, [ref]$errors)
+            if ($errors.Count -gt 0) { $bad++; Write-Host "ERROR $($_.FullName)"; $errors | ForEach-Object { Write-Host "   línea $($_.Extent.StartLineNumber): $($_.Message)" } }
+            else { Write-Host "OK    $($_.FullName)" }
+          }
+          if ($bad -gt 0) { exit 1 }
       - name: Comprobar el entorno de ejecución de .NET 8
         shell: powershell
         run: |

@@ -13,6 +13,7 @@ public class NotificationTests
 
     private static string DecodeBody(string raw)
     {
+        raw = raw.Replace("\r\n", "\n");        // el servidor simulado usa AppendLine: en Windows termina las líneas con CRLF
         var split = raw.IndexOf("\n\n", StringComparison.Ordinal);
         var headers = raw[..split];
         var body = raw[(split + 2)..].Trim();

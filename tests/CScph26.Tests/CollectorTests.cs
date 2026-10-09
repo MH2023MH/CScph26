@@ -280,7 +280,7 @@ public sealed class SqlCollectorTests : StoreTestBase
     {
         var path = Path.Combine(Dir, "ERRORLOG");
         var c = new SqlErrorLogCollector(Store, new SqlErrorLogCollectorOptions { Path = path, Utf16 = utf16 }, TimeZoneInfo.Utc);
-        var text = File.ReadAllText(TestSupport.FixturePath("sql-errorlog.txt")).Replace("\n", "\r\n");
+        var text = File.ReadAllText(TestSupport.FixturePath("sql-errorlog.txt")).ReplaceLineEndings("\r\n");
         Encoding enc = utf16 ? new UnicodeEncoding(false, true) : new UTF8Encoding(false);
         File.WriteAllBytes(path, enc.GetPreamble().Concat(enc.GetBytes(text)).ToArray());      // el archivo aparece después de arrancar el agente
 

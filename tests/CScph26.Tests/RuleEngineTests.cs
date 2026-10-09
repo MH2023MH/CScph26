@@ -5,14 +5,14 @@ namespace CScph26.Tests;
 
 public class RuleLoadingTests
 {
-    private const string Valid = """
+    private static readonly string Valid = """
         id: T-1
         fuente: eventlog.security
         condicion: { event_id: 4625, agrupar_por: ip_origen, umbral: 3, ventana: 5m }
         severidad: alta
         excluir: [lista_blanca]
         respuesta: { accion: firewall.block_ip, duracion: 1h }
-        """;
+        """.ReplaceLineEndings("\n");   // en Windows el repositorio se extrae con CRLF; las pruebas reemplazan por "\n"
 
     [Fact]
     public void Repository_rules_load_and_start_in_observe()

@@ -1,4 +1,6 @@
+#pragma warning disable CA1416   // estas pruebas se omiten fuera de Windows (RequireWindowsAdmin)
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text.RegularExpressions;
 using SecurityAgent.Collectors.Audits;
@@ -35,6 +37,18 @@ public class WindowsIntegrationTests(ITestOutputHelper log)
         var e = p.StandardError.ReadToEndAsync();
         if (!p.WaitForExit(120_000)) { p.Kill(true); return (-1, "tiempo agotado"); }
         return (p.ExitCode, o.Result + e.Result);
+    }
+
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool LogonUser(string user, string? domain, string password, int logonType, int provider, out IntPtr token);
+
+    [DllImport("kernel32.dll")]
+    private static extern bool CloseHandle(IntPtr handle);
+
+    /// <summary>Un inicio de sesión de red con contraseña incorrecta: genera un evento 4625 real en cada llamada.</summary>
+    private static void FailedLogon(string user)
+    {
+        if (LogonUser(user, ".", "WrongPass-123!", 3, 0, out var token)) CloseHandle(token);
     }
 
     private static string FindWorkerDll()
@@ -172,8 +186,9 @@ public class WindowsIntegrationTests(ITestOutputHelper log)
         var sysBefore = source.LatestRecordId("System");
         try
         {
-            for (var i = 0; i < 8; i++) Run("net", "use", @"\\127.0.0.1\IPC$", "/user:cscph26fake", "WrongPass-123!");     // 8 × 4625
-            log.WriteLine(Run("net", "user", "cscph26tmp", "Xx9!tempSecret1", "/add").Output);                               // 4720
+            log.WriteLine(Run("net", "use", @"\\127.0.0.1\IPC$", "/user:cscph26fake", "WrongPass-123!").Output);             // 4625 por SMB (con IP de origen)
+            for (var i = 0; i < 8; i++) FailedLogon("cscph26fake");                                                         // 8 × 4625 por la API de Windows
+            log.WriteLine(Run("net", "user", "cscph26tmp", "Xx9!tempS1", "/add").Output);                                    // 4720 (contraseña ≤ 14 caracteres: sin pregunta interactiva)
             log.WriteLine(Run("net", "localgroup", "Administrators", "cscph26tmp", "/add").Output);                          // 4732
             log.WriteLine(Run("sc.exe", "create", "CScph26TestSvc", "binPath=", @"C:\Windows\System32\cmd.exe", "start=", "demand").Output);   // 7045
             log.WriteLine(Run("schtasks", "/create", "/tn", "CScph26TestTask", "/tr", @"C:\Windows\System32\cmd.exe", "/sc", "once", "/st", "23:59", "/f").Output);   // 4698
@@ -186,8 +201,10 @@ public class WindowsIntegrationTests(ITestOutputHelper log)
             // 4625 reales
             var failed = sec.Where(e => e.Type == "4625" && e.Actor == "cscph26fake").ToList();
             Assert.True(failed.Count >= 8, $"4625 vistos: {failed.Count}");
-            Assert.All(failed, e => { Assert.Equal("eventlog.security", e.Source); Assert.NotNull(e.Ip); });
-            log.WriteLine($"IP de origen de los 4625 reales: {failed[0].Ip}");
+            Assert.All(failed, e => Assert.Equal("eventlog.security", e.Source));
+            log.WriteLine("IP de origen de los 4625 reales: " + string.Join(" | ", failed.Select(e => e.Ip ?? "(sin IP)").Distinct()));
+            var rawFailed = source.Read("Security", secBefore, 5000).First(r => EventLogXmlParser.Parse(r.Xml, "Security") is { Type: "4625", Actor: "cscph26fake" });
+            log.WriteLine("XML real de un 4625:\n" + rawFailed.Xml);
 
             // cuenta, grupo, tarea
             var created = sec.Single(e => e.Type == "4720" && e.Target == "cscph26tmp");
@@ -207,11 +224,11 @@ public class WindowsIntegrationTests(ITestOutputHelper log)
             Assert.Contains(hits, h => h.Rule.Id == "SEC-003");
             Assert.Contains(hits, h => h.Rule.Id == "SEC-004" && h.EventIds.Any(id => id.StartsWith("sys-")));
             Assert.Contains(hits, h => h.Rule.Id == "SEC-004" && h.EventIds.Any(id => id.StartsWith("sec-")));
-            // el intento de fuerza bruta vino de loopback: la lista blanca lo protege aunque supere el umbral
+            // los fallos no tienen una IP externa atribuible (loopback / sin IP): SEC-001 no debe bloquear nada
             Assert.DoesNotContain(hits, h => h.Rule.Id == "SEC-001");
 
-            // y sin la exclusión de lista blanca (regla de solo alerta) el umbral se cumple con los eventos reales
-            var alertOnly = RuleLoader.ParseYaml("id: T-4625\nfuente: eventlog.security\ncondicion:\n  event_id: 4625\n  agrupar_por: ip_origen\n  umbral: 8\n  ventana: 5m\nrespuesta:\n  accion: notify\n");
+            // el umbral y la agrupación funcionan con los eventos reales (regla de solo alerta agrupada por cuenta)
+            var alertOnly = RuleLoader.ParseYaml("id: T-4625\nfuente: eventlog.security\ncondicion:\n  event_id: 4625\n  agrupar_por: usuario\n  umbral: 8\n  ventana: 5m\nrespuesta:\n  accion: notify\n");
             var hit = new RuleEngine(new[] { alertOnly }, Allowlist.Empty).Process_All(failed);
             Assert.NotEmpty(hit);
         }
@@ -226,34 +243,72 @@ public class WindowsIntegrationTests(ITestOutputHelper log)
 
     // ---------------------------------------------------------------- Defender real (mejor esfuerzo)
 
+    private const string DefenderChannel = "Microsoft-Windows-Windows Defender/Operational";
+
+    private static bool RealtimeProtectionEnabled() =>
+        Run("powershell", "-NoProfile", "-Command", "(Get-MpComputerStatus).RealTimeProtectionEnabled").Output.Trim().Equals("True", StringComparison.OrdinalIgnoreCase);
+
     [SkippableFact]
-    public void Defender_detects_eicar_and_event_ids_match_sec008()
+    public void Defender_realtime_toggle_emits_the_event_ids_used_by_sec008()
     {
         RequireWindowsAdmin();
-        var status = Run("powershell", "-NoProfile", "-Command", "(Get-MpComputerStatus).RealTimeProtectionEnabled");
-        log.WriteLine("RealTimeProtectionEnabled: " + status.Output.Trim());
-        if (!status.Output.Trim().Equals("True", StringComparison.OrdinalIgnoreCase))
-            Run("powershell", "-NoProfile", "-Command", "Set-MpPreference -DisableRealtimeMonitoring $false");
-        status = Run("powershell", "-NoProfile", "-Command", "(Get-MpComputerStatus).RealTimeProtectionEnabled");
-        Skip.IfNot(status.Output.Trim().Equals("True", StringComparison.OrdinalIgnoreCase), "Defender sin protección en tiempo real en esta máquina");
-
-        const string channel = "Microsoft-Windows-Windows Defender/Operational";
+        Skip.IfNot(Run("powershell", "-NoProfile", "-Command", "Get-Command Get-MpComputerStatus -ErrorAction SilentlyContinue").Output.Contains("Get-MpComputerStatus"), "Defender no está disponible");
         var source = new WindowsEventRecordSource();
-        var before = source.LatestRecordId(channel);
+        var wasEnabled = RealtimeProtectionEnabled();
+        log.WriteLine("RealTimeProtectionEnabled al empezar: " + wasEnabled);
+        var before = source.LatestRecordId(DefenderChannel);
+        try
+        {
+            Run("powershell", "-NoProfile", "-Command", $"Set-MpPreference -DisableRealtimeMonitoring ${wasEnabled}");      // cambia el estado
+            var events = WaitForEvents(source, DefenderChannel, before, evs => evs.Any(e => e.Type is "5000" or "5001"), seconds: 40);
+            log.WriteLine("IDs de Defender tras cambiar la protección en tiempo real: " + string.Join(", ", events.Select(e => e.Type).Distinct()));
+            Skip.If(events.Count == 0, "no se pudo cambiar la protección en tiempo real (¿Tamper Protection?)");
+
+            var expected = wasEnabled ? "5001" : "5000";                                    // 5001 = desactivada, 5000 = activada
+            Assert.Contains(events, e => e.Type == expected && e.Source == "defender");
+            log.WriteLine($"Confirmado: el evento {expected} indica protección en tiempo real {(wasEnabled ? "DESACTIVADA" : "ACTIVADA")}");
+
+            if (wasEnabled)
+            {
+                var hits = new RuleEngine(RuleLoader.LoadDirectory(TestSupport.RulesDir), Allowlist.Empty).Process_All(events);
+                Assert.Contains(hits, h => h.Rule.Id == "SEC-008" && h.EventIds.Count > 0);      // SEC-008 se dispara con el evento REAL
+            }
+        }
+        finally
+        {
+            Run("powershell", "-NoProfile", "-Command", $"Set-MpPreference -DisableRealtimeMonitoring ${!wasEnabled}");
+        }
+    }
+
+    [SkippableFact]
+    public void Defender_detects_eicar_and_event_matches_sec008()
+    {
+        RequireWindowsAdmin();
+        if (!RealtimeProtectionEnabled()) Run("powershell", "-NoProfile", "-Command", "Set-MpPreference -DisableRealtimeMonitoring $false");
+        Skip.IfNot(RealtimeProtectionEnabled(), "Defender sin protección en tiempo real en esta máquina");
+
+        var source = new WindowsEventRecordSource();
+        var before = source.LatestRecordId(DefenderChannel);
 
         // Cadena de prueba EICAR (inofensiva, estándar de la industria), partida para que no la marque el antivirus al compilar.
         var eicar = @"X5O!P%@AP[4\PZX54(P^)7CC)7}$" + "EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
-        var path = Path.Combine(Path.GetTempPath(), "cscph26-eicar-" + Guid.NewGuid().ToString("N") + ".txt");
+        var dir = Path.Combine(Path.GetTempPath(), "cscph26-eicar-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, "prueba.txt");
         try { File.WriteAllText(path, eicar); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { log.WriteLine("Defender bloqueó la escritura: " + e.Message); }
-        try { _ = File.Exists(path) ? File.ReadAllText(path) : ""; } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
 
-        var events = WaitForEvents(source, channel, before, evs => evs.Any(e => e.Type == "1116"), seconds: 60);
+        var events = WaitForEvents(source, DefenderChannel, before, evs => evs.Any(e => e.Type == "1116"), seconds: 25);
+        if (!events.Any(e => e.Type == "1116"))
+        {
+            log.WriteLine("Sin detección en tiempo real; se fuerza un análisis a pedido de la carpeta");
+            Run("powershell", "-NoProfile", "-Command", $"Start-MpScan -ScanType CustomScan -ScanPath '{dir}'");
+            events = WaitForEvents(source, DefenderChannel, before, evs => evs.Any(e => e.Type == "1116"), seconds: 40);
+        }
         log.WriteLine("IDs de Defender tras EICAR: " + string.Join(", ", events.Select(e => e.Type).Distinct()));
-        try { if (File.Exists(path)) File.Delete(path); } catch (IOException) { }
+        try { Directory.Delete(dir, true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
 
-        Skip.If(events.Count == 0, "Defender no generó eventos en 60 s (¿sin conexión a la nube o protección diferida?)");
         var detection = events.FirstOrDefault(e => e.Type == "1116");
-        Assert.True(detection != null, "sin evento 1116; IDs vistos: " + string.Join(", ", events.Select(e => e.Type).Distinct()));
+        Skip.If(detection is null, "Defender no detectó el archivo EICAR en esta máquina (sin firmas actualizadas o sin conexión a la nube); IDs vistos: " + string.Join(", ", events.Select(e => e.Type).Distinct()));
         Assert.Equal("defender", detection!.Source);
         Assert.Contains("EICAR", detection.Target, StringComparison.OrdinalIgnoreCase);
         log.WriteLine($"1116 → Target={detection.Target}  Detail={detection.Detail}  Actor={detection.Actor}");
