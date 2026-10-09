@@ -119,9 +119,10 @@ public static class AgentComposition
         var store = sp.GetRequiredService<IStateStore>();
         var lf = sp.GetRequiredService<ILoggerFactory>();
         var list = new List<ICollector>();
+        var health = sp.GetRequiredService<AgentHealth>();
 
         if (sp.GetService<IEventRecordSource>() is { } source)
-            list.Add(new EventLogCollector(source, store, o.Collectors.EventLog, lf.CreateLogger("EventLog")));
+            list.Add(new EventLogCollector(source, store, o.Collectors.EventLog, lf.CreateLogger("EventLog"), health.Report));
         else
             lf.CreateLogger("Composition").LogWarning("Sin acceso al Event Log (solo Windows): collector de eventos deshabilitado");
 
@@ -130,7 +131,7 @@ public static class AgentComposition
         if (!string.IsNullOrEmpty(o.Collectors.Sql.Path))
             list.Add(new SqlErrorLogCollector(store, o.Collectors.Sql, log: lf.CreateLogger("Sql")));
         if (o.Collectors.Files.Roots.Count == 0) o.Collectors.Files.Roots.Add(CollectorsOptions.DefaultAppsRoot);
-        list.Add(new FileChangeCollector(o.Collectors.Files, sp.GetRequiredService<TimeProvider>(), lf.CreateLogger("Files")));
+        list.Add(new FileChangeCollector(o.Collectors.Files, sp.GetRequiredService<TimeProvider>(), lf.CreateLogger("Files"), health.Report));
         return list;
     }
 }

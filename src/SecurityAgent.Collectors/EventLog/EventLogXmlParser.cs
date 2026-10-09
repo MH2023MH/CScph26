@@ -75,6 +75,11 @@ public static class EventLogXmlParser
                 actor = N("SubjectUserName");
                 target = N("TaskName");
                 break;
+            case "4697":   // servicio instalado (canal Security; redundante con 7045 del canal System)
+                actor = N("SubjectUserName");
+                target = N("ServiceName");
+                detail = N("ServiceFileName");
+                break;
             case "7045":   // servicio instalado
                 actor = N("AccountName");
                 target = N("ServiceName");

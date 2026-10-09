@@ -10,4 +10,7 @@ public interface IEventRecordSource
 
     /// <summary>RecordId más reciente del canal (0 si vacío o inexistente).</summary>
     long LatestRecordId(string channel);
+
+    /// <summary>Último error al leer el canal (permiso denegado, canal inexistente...), o null si la última lectura fue correcta.</summary>
+    string? LastError(string channel) => null;
 }

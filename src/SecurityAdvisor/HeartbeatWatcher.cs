@@ -34,6 +34,7 @@ public sealed class HeartbeatWatcher(StatusApiClient api, double staleAfterSecon
         if (s.Integrity == "violated") warnings.Add("la integridad del agente está violada");
         if (s.LogShipping == "failing") warnings.Add("el envío de logs al exterior está fallando");
         if (s.LogShipping == "disabled") warnings.Add("el envío de logs al exterior está deshabilitado");
+        foreach (var p in s.Problems ?? Array.Empty<string>()) warnings.Add("una fuente no se puede leer — " + p);
         if (s.HeartbeatAgeSeconds is null || s.HeartbeatAgeSeconds > staleAfterSeconds)
             return new HeartbeatStatus(HeartbeatLevel.Stale, s.HeartbeatAgeSeconds, warnings);
         return new HeartbeatStatus(HeartbeatLevel.Ok, s.HeartbeatAgeSeconds, warnings);

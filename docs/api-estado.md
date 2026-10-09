@@ -18,7 +18,7 @@
 
 | Herramienta | Ruta | Parámetros | Respuesta |
 |---|---|---|---|
-| `get_status` | `GET /api/v1/status` | — | `StatusDto`: versión, hora, latido (`heartbeat_at`, `heartbeat_age_seconds`), modo efectivo de cada regla |
+| `get_status` | `GET /api/v1/status` | — | `StatusDto`: versión, hora, latido (`heartbeat_at`, `heartbeat_age_seconds`), modo efectivo de cada regla, `log_shipping`, `integrity` y `problems` (fuentes que el agente **no puede leer**: canal de eventos sin permiso o inexistente, carpeta vigilada que falta...; vacío si todo se lee) |
 | `list_alerts` | `GET /api/v1/alerts` | `rule`, `severity` (mínima: info\|baja\|media\|alta\|critica), `ip`, `since` (ISO 8601), `limit` (1–200, def. 50) | `ListDto<AlertDto>` |
 | `list_blocks` | `GET /api/v1/blocks` | — | `ListDto<BlockDto>` (activos, con expiración y motivo) |
 | `get_rule` | `GET /api/v1/rules/{id}` | — | `RuleDetailDto` con umbral, ventana, modo y últimas 10 alertas; 404 si no existe |

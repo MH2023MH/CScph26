@@ -70,14 +70,16 @@ function Show-Diagnostics {
     Write-Host ""; Write-Host "--- DIAGNÓSTICO ---" -ForegroundColor Yellow
     Get-Service $ServiceName -ErrorAction SilentlyContinue | Format-List Name, Status, StartType
     Get-CimInstance Win32_Service -Filter "Name='$ServiceName'" -ErrorAction SilentlyContinue | Format-List Name, State, StartName, PathName, ExitCode
+    Write-Host "--- Estado de la API (si el servicio sigue activo) ---"
+    $r = Call-Api '/api/v1/status'
+    Write-Host ("HTTP " + $r.Code + "  " + $r.Body)
+    Write-Host "--- Resumen de agent.db (--stats) ---"
+    if (Test-Path $exe) { & $exe --stats | Out-Host }
     try {
-        Get-WinEvent -FilterHashtable @{ LogName = 'Application'; ProviderName = $ServiceName } -MaxEvents 30 -ErrorAction Stop |
-            Format-List TimeCreated, LevelDisplayName, Message
-    } catch { Write-Host "Sin eventos de la aplicación $ServiceName en el registro de Windows." }
-    try {
-        Get-WinEvent -FilterHashtable @{ LogName = 'Application'; ProviderName = '.NET Runtime' } -MaxEvents 5 -ErrorAction Stop | Format-List TimeCreated, Message
-    } catch { }
-    if (Test-Path $install) { Get-ChildItem $install | Select-Object Name, Length | Format-Table -AutoSize }
+        Write-Host "--- Registro de la aplicación SecurityAgent (Windows Application log) ---"
+        Get-WinEvent -FilterHashtable @{ LogName = 'Application'; ProviderName = $ServiceName } -MaxEvents 60 -ErrorAction Stop |
+            Sort-Object TimeCreated | ForEach-Object { "{0:HH:mm:ss} {1,-11} {2}" -f $_.TimeCreated, $_.LevelDisplayName, ($_.Message -replace '\s+', ' ') } | Out-Host
+    } catch { Write-Host "Sin eventos de $ServiceName." }
 }
 
 function Invoke-Flow {
@@ -160,6 +162,9 @@ function Invoke-Flow {
         Check (@($status.rules | Where-Object { $_.mode -ne 'observe' }).Count -eq 0) 'todas las reglas están en observe'
         Check ($status.log_shipping -eq 'disabled') 'el envío de logs figura como disabled (sin destino configurado)'
         Check (Wait-Until { (Api-Json '/api/v1/status').integrity -eq 'ok' } 30) 'integridad OK: la clave HMAC y los permisos de lectura de la cuenta de servicio son coherentes'
+        $status = Api-Json '/api/v1/status'
+        Write-Host ("  Problemas de recolección informados por el agente: " + (@($status.problems) -join ' | '))
+        Check (@($status.problems | Where-Object { $_ -match 'eventlog:(Security|System)|^fs:' }).Count -eq 0) 'los canales Security y System y la carpeta vigilada se leen sin problemas (si falla, el motivo está en la línea anterior)'
     }
     Check ((Call-Api '/api/v1/status' '').Code -eq 401) 'sin token: 401'
     Check ((Call-Api '/api/v1/status' 'otro-token').Code -eq 401) 'token incorrecto: 401'
@@ -244,10 +249,11 @@ catch {
     $script:failures.Add("excepción: $($_.Exception.Message)")
 }
 
-if ($script:failures.Count -gt 0) { Show-Diagnostics }
-# limpieza best-effort por si el flujo se interrumpió
-& net.exe user cscph26ci /delete 2>$null | Out-Null
-& sc.exe delete CScph26CiSvc 2>$null | Out-Null
+Show-Diagnostics
+# limpieza best-effort por si el flujo se interrumpió (cmd /c evita que PowerShell trate la salida de error como excepción)
+$ErrorActionPreference = 'Continue'
+cmd.exe /c "net user cscph26ci /delete >nul 2>nul"
+cmd.exe /c "sc.exe delete CScph26CiSvc >nul 2>nul"
 
 Write-Host ""
 if ($script:failures.Count -eq 0) { Write-Host "TODAS LAS COMPROBACIONES PASARON" -ForegroundColor Green; exit 0 }

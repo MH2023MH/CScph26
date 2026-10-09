@@ -260,6 +260,33 @@ public sealed class SqliteStateStore : IStateStore, IDisposable
         }
     }
 
+    /// <summary>Resumen de solo lectura para diagnóstico (--stats): qué entra, qué alerta y hasta dónde llegó cada collector.</summary>
+    public IReadOnlyList<string> Diagnostics()
+    {
+        var lines = new List<string>();
+        lock (_gate)
+        {
+            void Query(string title, string sql, Func<SqliteDataReader, string> row)
+            {
+                lines.Add(title);
+                using var c = _db.CreateCommand();
+                c.CommandText = sql;
+                using var r = c.ExecuteReader();
+                var any = false;
+                while (r.Read()) { any = true; lines.Add("  " + row(r)); }
+                if (!any) lines.Add("  (vacío)");
+            }
+            Query("Eventos por fuente y tipo (los 40 más frecuentes):", "SELECT source,type,COUNT(*) FROM events GROUP BY source,type ORDER BY 3 DESC LIMIT 40",
+                r => $"{r.GetString(0),-20} {r.GetString(1),-14} {r.GetInt64(2)}");
+            Query("Alertas por regla:", "SELECT rule_id,COUNT(*),MAX(ts) FROM alerts GROUP BY rule_id ORDER BY rule_id",
+                r => $"{r.GetString(0),-16} {r.GetInt64(1)} (última: {DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(2)):u})");
+            Query("Bloqueos:", "SELECT ip,rule_id,expires FROM blocks ORDER BY created",
+                r => $"{r.GetString(0)}  {r.GetString(1)}  expira {DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(2)):u}");
+            Query("Cursores de los collectors:", "SELECT name,value FROM cursors ORDER BY name", r => $"{r.GetString(0)} = {r.GetInt64(1)}");
+        }
+        return lines;
+    }
+
     public long? GetCursor(string name)
     {
         lock (_gate)

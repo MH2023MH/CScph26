@@ -46,6 +46,12 @@ public static class Cli
             output.WriteLine(hadRecord ? $"Bloqueo de {ip} retirado del firewall y del registro." : $"No había registro de bloqueo para {ip}; se retiró cualquier regla residual del firewall.");
             return 0;
         }
+        if (args.Contains("--stats"))
+        {
+            using var store = new SqliteStateStore(options.Store);
+            foreach (var line in store.Diagnostics()) output.WriteLine(line);
+            return 0;
+        }
         if (args.Contains("--selftest-limits"))
             return SelfTestLimits(args, output);
         if (args.Contains("--set-mode"))

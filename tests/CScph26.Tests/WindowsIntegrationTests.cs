@@ -18,6 +18,7 @@ namespace CScph26.Tests;
 /// Validan lo que no se puede comprobar con datos simulados: netsh, Job Object, Event Log, XML real de los eventos y Defender.
 /// </summary>
 [Trait("Category", "WindowsIntegration")]
+[Collection("WindowsIntegration")]
 public class WindowsIntegrationTests(ITestOutputHelper log)
 {
     private static void RequireWindowsAdmin()
@@ -256,23 +257,30 @@ public class WindowsIntegrationTests(ITestOutputHelper log)
         var source = new WindowsEventRecordSource();
         var wasEnabled = RealtimeProtectionEnabled();
         log.WriteLine("RealTimeProtectionEnabled al empezar: " + wasEnabled);
-        var before = source.LatestRecordId(DefenderChannel);
         try
         {
-            Run("powershell", "-NoProfile", "-Command", $"Set-MpPreference -DisableRealtimeMonitoring ${wasEnabled}");      // cambia el estado
-            var events = WaitForEvents(source, DefenderChannel, before, evs => evs.Any(e => e.Type is "5000" or "5001"), seconds: 40);
-            log.WriteLine("IDs de Defender tras cambiar la protección en tiempo real: " + string.Join(", ", events.Select(e => e.Type).Distinct()));
-            Skip.If(events.Count == 0, "no se pudo cambiar la protección en tiempo real (¿Tamper Protection?)");
-
-            var expected = wasEnabled ? "5001" : "5000";                                    // 5001 = desactivada, 5000 = activada
-            Assert.Contains(events, e => e.Type == expected && e.Source == "defender");
-            log.WriteLine($"Confirmado: el evento {expected} indica protección en tiempo real {(wasEnabled ? "DESACTIVADA" : "ACTIVADA")}");
-
-            if (wasEnabled)
+            // A) activar (si estaba apagada) → evento 5000
+            if (!wasEnabled)
             {
-                var hits = new RuleEngine(RuleLoader.LoadDirectory(TestSupport.RulesDir), Allowlist.Empty).Process_All(events);
-                Assert.Contains(hits, h => h.Rule.Id == "SEC-008" && h.EventIds.Count > 0);      // SEC-008 se dispara con el evento REAL
+                var beforeOn = source.LatestRecordId(DefenderChannel);
+                Run("powershell", "-NoProfile", "-Command", "Set-MpPreference -DisableRealtimeMonitoring $false");
+                var on = WaitForEvents(source, DefenderChannel, beforeOn, evs => evs.Any(e => e.Type == "5000"), seconds: 40);
+                log.WriteLine("Tras ACTIVAR: " + string.Join(", ", on.Select(e => e.Type).Distinct()));
+                Skip.If(on.Count == 0, "no se pudo activar la protección en tiempo real (¿Tamper Protection?)");
+                Assert.Contains(on, e => e.Type == "5000" && e.Source == "defender");
+                log.WriteLine("Confirmado: 5000 = protección en tiempo real ACTIVADA");
             }
+
+            // B) desactivar → evento 5001, y SEC-008 se dispara con el evento real
+            var beforeOff = source.LatestRecordId(DefenderChannel);
+            Run("powershell", "-NoProfile", "-Command", "Set-MpPreference -DisableRealtimeMonitoring $true");
+            var off = WaitForEvents(source, DefenderChannel, beforeOff, evs => evs.Any(e => e.Type == "5001"), seconds: 40);
+            log.WriteLine("Tras DESACTIVAR: " + string.Join(", ", off.Select(e => e.Type).Distinct()));
+            if (off.Count == 0) { log.WriteLine("No se pudo desactivar la protección (Tamper Protection): 5001 no verificado en esta máquina."); return; }
+            Assert.Contains(off, e => e.Type == "5001" && e.Source == "defender");
+            log.WriteLine("Confirmado: 5001 = protección en tiempo real DESACTIVADA");
+            var hits = new RuleEngine(RuleLoader.LoadDirectory(TestSupport.RulesDir), Allowlist.Empty).Process_All(off);
+            Assert.Contains(hits, h => h.Rule.Id == "SEC-008" && h.EventIds.Count > 0);
         }
         finally
         {
@@ -341,4 +349,15 @@ internal static class EngineExtensions
     /// <summary>Procesa una lista de eventos y devuelve todos los aciertos.</summary>
     public static List<RuleHit> Process_All(this RuleEngine engine, IEnumerable<SecurityEvent> events) =>
         events.OrderBy(e => e.Timestamp).SelectMany(engine.Process).ToList();
+}
+
+/// <summary>Estas pruebas bloquean hilos (esperas, procesos externos): no deben competir con el resto, que sufriría falsos tiempos de espera.</summary>
+[CollectionDefinition("WindowsIntegration", DisableParallelization = true)]
+public class WindowsIntegrationCollection { }
+
+internal static class ThreadPoolSetup
+{
+    /// <summary>Evita la inanición del grupo de hilos en máquinas de pocos núcleos (muchas pruebas usan esperas síncronas).</summary>
+    [System.Runtime.CompilerServices.ModuleInitializer]
+    internal static void Init() => ThreadPool.SetMinThreads(64, 64);
 }

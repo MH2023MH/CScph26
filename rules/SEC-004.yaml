@@ -3,7 +3,7 @@ nombre: Servicio o tarea programada nueva
 modo: observe
 fuente: [eventlog.system, eventlog.security]
 condicion:
-  event_id: [7045, 4698]      # 7045 = servicio instalado (System); 4698 = tarea programada creada (Security)
+  event_id: [7045, 4697, 4698]   # 7045 = servicio instalado (System); 4697 = lo mismo visto desde Security; 4698 = tarea programada creada (Security)
   agrupar_por: ninguno
   umbral: 1
   ventana: 1m

@@ -35,26 +35,42 @@ public sealed class FileChangeCollector : ICollector, IDisposable
     private readonly ConcurrentDictionary<(string, string), DateTimeOffset> _last = new();
     private long _seq;
 
-    public FileChangeCollector(FileChangeCollectorOptions options, TimeProvider? time = null, ILogger? log = null)
+    public FileChangeCollector(FileChangeCollectorOptions options, TimeProvider? time = null, ILogger? log = null, Action<string, string?>? report = null)
     {
         _opt = options;
         _time = time ?? TimeProvider.System;
         _log = log;
-        foreach (var root in options.Roots.Where(Directory.Exists))
+        foreach (var root in options.Roots)
         {
-            var w = new FileSystemWatcher(root)
+            if (!Directory.Exists(root))
             {
-                IncludeSubdirectories = true,
-                InternalBufferSize = 64 * 1024,
-                NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.CreationTime,
-            };
-            w.Created += (_, e) => Enqueue("file.created", e.FullPath, null);
-            w.Changed += (_, e) => Enqueue("file.changed", e.FullPath, null);
-            w.Deleted += (_, e) => Enqueue("file.deleted", e.FullPath, null);
-            w.Renamed += (_, e) => Enqueue("file.renamed", e.FullPath, "from " + e.OldFullPath);
-            w.Error += (_, e) => Enqueue("fs.overflow", root, e.GetException().Message);
-            w.EnableRaisingEvents = true;
-            _watchers.Add(w);
+                report?.Invoke("fs:" + root, "la carpeta no existe: no se vigila");
+                log?.LogWarning("La carpeta vigilada {Root} no existe", root);
+                continue;
+            }
+            try
+            {
+                var w = new FileSystemWatcher(root)
+                {
+                    IncludeSubdirectories = true,
+                    InternalBufferSize = 64 * 1024,
+                    NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.CreationTime,
+                };
+                w.Created += (_, e) => Enqueue("file.created", e.FullPath, null);
+                w.Changed += (_, e) => Enqueue("file.changed", e.FullPath, null);
+                w.Deleted += (_, e) => Enqueue("file.deleted", e.FullPath, null);
+                w.Renamed += (_, e) => Enqueue("file.renamed", e.FullPath, "from " + e.OldFullPath);
+                w.Error += (_, e) => { Enqueue("fs.overflow", root, e.GetException().Message); report?.Invoke("fs:" + root, "error del vigilante: " + e.GetException().Message); };
+                w.EnableRaisingEvents = true;
+                _watchers.Add(w);
+                report?.Invoke("fs:" + root, null);
+                log?.LogInformation("Vigilando cambios de archivos en {Root}", root);
+            }
+            catch (Exception e) when (e is ArgumentException or IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+            {
+                report?.Invoke("fs:" + root, $"no se puede vigilar: {e.GetType().Name}: {e.Message}");
+                log?.LogWarning(e, "No se puede vigilar {Root}", root);
+            }
         }
     }
 

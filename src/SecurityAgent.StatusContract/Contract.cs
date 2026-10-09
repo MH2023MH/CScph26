@@ -10,7 +10,7 @@ public sealed record RuleStatusDto(string Id, string Name, string Mode, string F
 public sealed record StatusDto(
     string Version, DateTimeOffset ServerTime, DateTimeOffset StartedAt,
     DateTimeOffset? HeartbeatAt, double? HeartbeatAgeSeconds, IReadOnlyList<RuleStatusDto> Rules,
-    string LogShipping = "disabled", string Integrity = "unknown");
+    string LogShipping = "disabled", string Integrity = "unknown", IReadOnlyList<string>? Problems = null);
 
 public sealed record AlertDto(
     string Id, string RuleId, DateTimeOffset Timestamp, string Severity, string? GroupKey, string Message,

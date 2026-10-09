@@ -30,9 +30,23 @@ public sealed class EventLogCollectorOptions
     public StartPolicy StartPolicy { get; set; } = StartPolicy.FromLatest;
 }
 
-public sealed class EventLogCollector(IEventRecordSource source, IStateStore store, EventLogCollectorOptions options, ILogger? log = null) : ICollector
+public sealed class EventLogCollector(IEventRecordSource source, IStateStore store, EventLogCollectorOptions options, ILogger? log = null,
+    Action<string, string?>? report = null) : ICollector
 {
     public string Name => "eventlog";
+
+    private readonly Dictionary<string, string?> _lastReported = new();
+
+    private void Report(string channel)
+    {
+        var err = source.LastError(channel);
+        _lastReported.TryGetValue(channel, out var prev);
+        if (prev == err) return;                      // sin cambios (incluye "sigue todo bien" la primera vez)
+        _lastReported[channel] = err;
+        report?.Invoke("eventlog:" + channel, err);
+        if (err != null) log?.LogWarning("No se puede leer el canal {Channel}: {Error}", channel, err);
+        else if (prev != null) log?.LogInformation("El canal {Channel} vuelve a ser legible", channel);
+    }
 
     private static string CursorKey(string channel) => "eventlog:" + channel;
 
@@ -51,12 +65,14 @@ public sealed class EventLogCollector(IEventRecordSource source, IStateStore sto
                 if (options.StartPolicy == StartPolicy.FromLatest)
                 {
                     store.SetCursor(key, source.LatestRecordId(channel));
+                    Report(channel);
                     continue;
                 }
                 cursor = 0;
             }
 
             var records = source.Read(channel, cursor.Value, options.MaxPerChannelPerPoll);
+            Report(channel);
             if (records.Count == 0) continue;
             foreach (var r in records)
             {

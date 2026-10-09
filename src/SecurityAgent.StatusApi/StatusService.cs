@@ -34,7 +34,7 @@ public sealed class StatusService
         var beat = _heartbeat.LastBeat;
         return new StatusDto(_version, now, _heartbeat.StartedAt, beat, beat is null ? null : (now - beat.Value).TotalSeconds,
             _rules.Select(r => new RuleStatusDto(r.Id, Sanitizer.Clean(r.Name)!, RuleModes.Effective(r, _store).ToString().ToLowerInvariant(),
-                r.FileMode.ToString().ToLowerInvariant())).ToList(), _health.LogShipping, _health.Integrity);
+                r.FileMode.ToString().ToLowerInvariant())).ToList(), _health.LogShipping, _health.Integrity, _health.Problems().Select(p => Sanitizer.Clean(p, 300)!).ToList());
     }
 
     public ListDto<AlertDto> ListAlerts(DateTimeOffset? since, string? ruleId, Severity? minSeverity, string? ip, int limit)
