@@ -85,6 +85,22 @@ if ($existing -and $existing.Status -ne 'Stopped') {
 Invoke-Step "Crear carpetas en $InstallDir" {
     New-Item -ItemType Directory -Force -Path $InstallDir, (Join-Path $InstallDir 'data'), (Join-Path $InstallDir 'logs') | Out-Null
 }
+# ---- 3. Servicio con cuenta virtual ----
+# La cuenta virtual NT SERVICE\<servicio> solo se resuelve (SID) cuando el servicio existe, así que el servicio se crea ANTES de las ACL.
+# Crearlo no exige que el ejecutable ya esté en la carpeta: se copia después, ya con la carpeta protegida.
+if (-not $existing) {
+    Invoke-Step "Crear el servicio $ServiceName" {
+        New-Service -Name $ServiceName -BinaryPathName ('"{0}"' -f (Join-Path $InstallDir $exeName)) `
+            -DisplayName 'CScph26 SecurityAgent' `
+            -Description 'Monitor de seguridad de srv-copahue2: detecta y alerta; los bloqueos son acotados y reversibles.' `
+            -StartupType Automatic | Out-Null
+    }
+}
+Invoke-Step "Configurar la cuenta virtual $account y la recuperación automática" {
+    & sc.exe config $ServiceName obj= $account | Out-Null; Assert-ExitCode 'sc config obj'
+    & sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/30000/restart/60000 | Out-Null; Assert-ExitCode 'sc failure'
+}
+
 Invoke-Step "Aplicar ACL estrictas en $InstallDir antes de copiar nada" { Set-InstallAcl }
 Invoke-Step "Copiar binarios y reglas desde $PublishDir (data\ y logs\ no se tocan)" {
     Get-ChildItem -Path $PublishDir -Force | Where-Object { $_.Name -notin @('data', 'logs') } |
@@ -101,20 +117,6 @@ Invoke-Step "Registrar la fuente '$ServiceName' en el registro de eventos de Win
     if (-not [System.Diagnostics.EventLog]::SourceExists($ServiceName)) {
         New-EventLog -LogName Application -Source $ServiceName
     }
-}
-
-# ---- 3. Servicio con cuenta virtual ----
-if (-not $existing) {
-    Invoke-Step "Crear el servicio $ServiceName" {
-        New-Service -Name $ServiceName -BinaryPathName ('"{0}"' -f (Join-Path $InstallDir $exeName)) `
-            -DisplayName 'CScph26 SecurityAgent' `
-            -Description 'Monitor de seguridad de srv-copahue2: detecta y alerta; los bloqueos son acotados y reversibles.' `
-            -StartupType Automatic | Out-Null
-    }
-}
-Invoke-Step "Configurar la cuenta virtual $account y la recuperación automática" {
-    & sc.exe config $ServiceName obj= $account | Out-Null; Assert-ExitCode 'sc config obj'
-    & sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/30000/restart/60000 | Out-Null; Assert-ExitCode 'sc failure'
 }
 
 # ---- 4. ACL (principio 4 y 8): reafirmar tras copiar ----
