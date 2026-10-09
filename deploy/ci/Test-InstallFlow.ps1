@@ -15,7 +15,10 @@ param(
     [Parameter(Mandatory = $true)][string]$PublishDir,
     [string]$WorkDir = 'C:\cscph26-test',
     [string]$ServiceName = 'SecurityAgent',
-    [int]$ApiPort = 8750
+    [int]$ApiPort = 8750,
+    # > 0: tras las comprobaciones funcionales, corrida sostenida (tráfico IIS + eventos reales + cambios de archivos) midiendo memoria, CPU,
+    # latido y capacidad de ponerse al día. Solo para el workflow manual "Soak".
+    [int]$SoakSeconds = 0
 )
 
 $ErrorActionPreference = 'Stop'
@@ -29,6 +32,7 @@ $account = "NT SERVICE\$ServiceName"
 $token = 'ci-' + [guid]::NewGuid().ToString('N')
 $hmac = 'hmac-' + [guid]::NewGuid().ToString('N')
 $exe = Join-Path $install 'SecurityAgent.Worker.exe'
+$iisRoot = if ($SoakSeconds -gt 0) { Join-Path $WorkDir 'iislogs' } else { 'C:\no-existe-iis' }
 
 function Step([string]$name) { Write-Host ""; Write-Host "=== $name ===" -ForegroundColor Cyan }
 function Check([bool]$cond, [string]$msg) {
@@ -82,11 +86,93 @@ function Show-Diagnostics {
     } catch { Write-Host "Sin eventos de $ServiceName." }
 }
 
+function Get-TailCursor([string]$path) {
+    $line = (& $exe --stats) | Where-Object { $_ -match [regex]::Escape("tail:$path") + '\s*=\s*(\d+)' } | Select-Object -First 1
+    if ($line -and $line -match '=\s*(\d+)\s*$') { return [int64]$Matches[1] }
+    return -1
+}
+
+function Invoke-Soak([int]$seconds) {
+    Step "Corrida sostenida de $seconds s"
+    $proc = Get-Process -Name 'SecurityAgent.Worker' -ErrorAction SilentlyContinue | Select-Object -First 1
+    Check ($null -ne $proc) 'el proceso del servicio está en ejecución antes de la carga'
+    if (-not $proc) { return }
+    $pid0 = $proc.Id
+    $cores = [Environment]::ProcessorCount
+    $log = Join-Path $iisRoot 'u_ex261009.log'
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($log, "#Fields: date time c-ip cs-method cs-uri-stem cs-uri-query sc-status cs(User-Agent)`n", $utf8)
+    $fs = New-Object System.IO.FileStream($log, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite)
+    $sw = New-Object System.IO.StreamWriter($fs, $utf8)
+
+    $written = 0; $n = 0
+    $maxWs = 0; $maxCpu = 0; $maxAge = 0; $apiFail = 0; $samples = 0
+    $start = Get-Date; $nextSample = $start.AddSeconds(5); $nextEvents = $start.AddSeconds(3); $nextFile = $start.AddSeconds(7)
+    $lastCpu = $proc.TotalProcessorTime.TotalSeconds; $lastAt = $start
+    while (((Get-Date) - $start).TotalSeconds -lt $seconds) {
+        $t = (Get-Date).ToUniversalTime()
+        $sb = New-Object System.Text.StringBuilder
+        for ($i = 0; $i -lt 500; $i++) {
+            $n++
+            if ($n % 10 -eq 0) { [void]$sb.Append("$($t.ToString('yyyy-MM-dd HH:mm:ss')) 198.51.100.$(1 + $n % 5) GET /a/../../windows/win.ini id=1'+or+1=1-- 404 sqlmap`n") }
+            else { [void]$sb.Append("$($t.ToString('yyyy-MM-dd HH:mm:ss')) 203.0.113.$(1 + $n % 200) GET /products/$($n % 900) page=$n 200 Mozilla/5.0`n") }
+        }
+        $sw.Write($sb.ToString()); $sw.Flush(); $written += 500
+        Start-Sleep -Milliseconds 250      # ~2000 líneas por segundo
+
+        $now = Get-Date
+        if ($now -ge $nextEvents) {         # eventos de seguridad reales
+            1..5 | ForEach-Object { cmd.exe /c "net use \\127.0.0.1\IPC$ /user:soakuser WrongPass1 >nul 2>nul" }
+            $nextEvents = $now.AddSeconds(5)
+        }
+        if ($now -ge $nextFile) {           # cambios de archivos vigilados
+            Set-Content (Join-Path $apps 'shop\web.config') "<configuration><!-- soak $n --></configuration>"
+            $nextFile = $now.AddSeconds(10)
+        }
+        if ($now -ge $nextSample) {
+            $p = Get-Process -Id $pid0 -ErrorAction SilentlyContinue
+            if (-not $p) { Check $false "el proceso del servicio sigue vivo durante la carga (PID $pid0)"; break }
+            $samples++
+            $ws = [math]::Round($p.WorkingSet64 / 1MB); if ($ws -gt $maxWs) { $maxWs = $ws }
+            $cpuNow = $p.TotalProcessorTime.TotalSeconds
+            $cpu = [math]::Round(($cpuNow - $lastCpu) / (($now - $lastAt).TotalSeconds) / $cores * 100, 1)
+            if ($cpu -gt $maxCpu) { $maxCpu = $cpu }
+            $lastCpu = $cpuNow; $lastAt = $now
+            $st = Api-Json '/api/v1/status'
+            if ($null -eq $st) { $apiFail++ } else { $age = [double]$st.heartbeat_age_seconds; if ($age -gt $maxAge) { $maxAge = $age } }
+            Write-Host ("  t={0,4:0}s  escritas={1,8}  RAM={2,4} MB  CPU={3,5}%  latido={4:0.0}s" -f ($now - $start).TotalSeconds, $written, $ws, $cpu, $maxAge)
+            $nextSample = $now.AddSeconds(5)
+        }
+    }
+    $sw.Dispose(); $fs.Dispose()
+    $secs = ((Get-Date) - $start).TotalSeconds
+    Write-Host ("  escritas {0} líneas en {1:0} s (~{2:0}/s); RAM máxima {3} MB; CPU máxima {4}%; latido máximo {5:0.0} s" -f $written, $secs, ($written / $secs), $maxWs, $maxCpu, $maxAge)
+
+    Check ($null -ne (Get-Process -Id $pid0 -ErrorAction SilentlyContinue)) 'el servicio sigue vivo (mismo PID) tras la carga: no hubo reinicios'
+    Check ($maxWs -lt 512) "la memoria del proceso se mantuvo bajo el tope de 512 MB (máx. $maxWs MB)"
+    Check ($maxCpu -le 27) "la CPU respetó el tope de 25 % de la máquina (máx. $maxCpu %)"
+    Check ($maxAge -lt 30) "el latido nunca se atrasó más de 30 s (máx. $maxAge s)"
+    Check ($apiFail -le 1) "la API respondió durante la carga (fallos: $apiFail de $samples)"
+
+    $size = (Get-Item $log).Length
+    $caught = Wait-Until { (Get-TailCursor $log) -eq $size } 120 3
+    $cur = Get-TailCursor $log
+    Check $caught "el agente se puso al día con el log (cursor $cur de $size bytes)"
+    $dbBytes = (Get-ChildItem (Join-Path $install 'data') -Filter 'agent.db*' | Measure-Object Length -Sum).Sum
+    Write-Host ("  agent.db + WAL: {0:0} MB" -f ($dbBytes / 1MB))
+    Check ($dbBytes -lt 300MB) ("agent.db se mantuvo acotada (< 300 MB; actual {0:0} MB)" -f ($dbBytes / 1MB))
+    $alerts = Api-Json '/api/v1/alerts?rule=SEC-007&limit=5'
+    Check ($null -ne $alerts -and @($alerts.items).Count -ge 1) 'SEC-007 detectó el tráfico hostil durante la carga'
+    $st = Api-Json '/api/v1/status'
+    Check (@($st.problems | Where-Object { $_ -notmatch 'Sysmon' }).Count -eq 0) 'sin problemas nuevos de recolección tras la carga'
+}
+
 function Invoke-Flow {
     # ------------------------------------------------------------------ Preparación
     Step 'Preparación'
     if (Test-Path $WorkDir) { Remove-Item $WorkDir -Recurse -Force }
     New-Item -ItemType Directory -Force -Path (Join-Path $apps 'shop') | Out-Null
+    if ($SoakSeconds -gt 0) { New-Item -ItemType Directory -Force -Path $iisRoot | Out-Null }
     Set-Content (Join-Path $apps 'shop\web.config') '<configuration/>'
     foreach ($g in '{0CCE9215-69AE-11D9-BED3-505054503030}', '{0CCE9235-69AE-11D9-BED3-505054503030}', '{0CCE9237-69AE-11D9-BED3-505054503030}', '{0CCE9227-69AE-11D9-BED3-505054503030}') {
         & auditpol.exe /set /subcategory:$g /success:enable /failure:enable | Out-Null
@@ -98,7 +184,7 @@ function Invoke-Flow {
             Integrity           = @{ HmacKey = $hmac; Interval = '00:00:05' }
             Collectors          = @{
                 EventLog = @{ Channels = @('Security', 'System') }
-                Iis      = @{ Root = 'C:\no-existe-iis' }
+                Iis      = @{ Root = $iisRoot }
                 Files    = @{ Roots = @($apps) }
             }
             PollInterval        = '00:00:02'
@@ -112,13 +198,13 @@ function Invoke-Flow {
 
     # ------------------------------------------------------------------ Ensayo (-WhatIf)
     Step 'Instalador con -WhatIf (no debe cambiar nada)'
-    & $installScript -PublishDir $PublishDir -InstallDir $install -ConfigFile $cfgFile -AppsRoot $apps -IisLogRoot 'C:\no-existe-iis' -AdvisorAddress 127.0.0.1 -ApiPort $ApiPort -WhatIf | Out-Host
+    & $installScript -PublishDir $PublishDir -InstallDir $install -ConfigFile $cfgFile -AppsRoot $apps -IisLogRoot $iisRoot -AdvisorAddress 127.0.0.1 -ApiPort $ApiPort -WhatIf | Out-Host
     Check (-not (Test-Path $install)) 'WhatIf no creó la carpeta de instalación'
     Check ($null -eq (Get-Service $ServiceName -ErrorAction SilentlyContinue)) 'WhatIf no creó el servicio'
 
     # ------------------------------------------------------------------ Instalación real
     Step 'Instalación real'
-    & $installScript -PublishDir $PublishDir -InstallDir $install -ConfigFile $cfgFile -AppsRoot $apps -IisLogRoot 'C:\no-existe-iis' -AdvisorAddress 127.0.0.1 -ApiPort $ApiPort -Confirm:$false | Out-Host
+    & $installScript -PublishDir $PublishDir -InstallDir $install -ConfigFile $cfgFile -AppsRoot $apps -IisLogRoot $iisRoot -AdvisorAddress 127.0.0.1 -ApiPort $ApiPort -Confirm:$false | Out-Host
 
     $svc = Get-CimInstance Win32_Service -Filter "Name='$ServiceName'"
     Check ($null -ne $svc) 'el servicio existe'
@@ -237,6 +323,8 @@ function Invoke-Flow {
     $proc = Get-Process -Name 'SecurityAgent.Worker' -ErrorAction SilentlyContinue | Select-Object -First 1
     Check ($null -ne $proc) 'el proceso del servicio está en ejecución'
     if ($proc) { Check ($proc.PriorityClass -eq 'BelowNormal') "prioridad baja (actual: $($proc.PriorityClass))" }
+
+    if ($SoakSeconds -gt 0) { Invoke-Soak $SoakSeconds }
 
     # ------------------------------------------------------------------ Desinstalación
     Step 'Desinstalación'

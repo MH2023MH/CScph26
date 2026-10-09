@@ -1,0 +1,48 @@
+name: Soak
+
+# Corrida sostenida del servicio REAL en Windows (manual): instala el agente con el instalador de producción, le inyecta ~2 000 líneas
+# de IIS por segundo (10 % hostiles) más eventos de seguridad reales y cambios de archivos, y comprueba que no hay reinicios, que la
+# memoria y la CPU respetan los topes del Job Object, que el latido y la API siguen sanos, que agent.db queda acotada y que el
+# agente se pone al día. Úsese con 600 s o más antes de desplegar cambios del núcleo; no corre solo porque dura minutos.
+on:
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: 'Duración de la carga en segundos'
+        required: true
+        default: '300'
+
+jobs:
+  windows-soak:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Comprobar el entorno de ejecución de .NET 8
+        shell: powershell
+        run: |
+          $ok = (dotnet --list-runtimes) -match 'Microsoft.AspNetCore.App 8\.'
+          if (-not $ok) {
+            Invoke-WebRequest https://dot.net/v1/dotnet-install.ps1 -OutFile dotnet-install.ps1
+            ./dotnet-install.ps1 -Channel 8.0 -Runtime aspnetcore -InstallDir 'C:\Program Files\dotnet'
+          }
+      - name: Publicar
+        run: dotnet publish src/SecurityAgent.Worker -c Release -r win-x64 --self-contained false -o publish
+      - name: Instalar, cargar y medir
+        shell: powershell
+        run: ./deploy/ci/Test-InstallFlow.ps1 -PublishDir "$PWD\publish" -SoakSeconds ${{ inputs.seconds }}
+  linux-load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Pruebas de carga (corrida sostenida de la lógica, sin servicio)
+        env:
+          LOAD_SOAK_SECONDS: ${{ inputs.seconds }}
+        run: dotnet test CScph26.sln -c Release --filter "Category=Load" --logger "console;verbosity=detailed"

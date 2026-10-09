@@ -27,7 +27,7 @@ prueba que lo reproduce en `tests/CScph26.Tests/SecurityReviewTests.cs`. El sist
   del puerto solo para la IP del asesor; falta decidir el certificado (CA interna o autofirmado con fijación).
 - **Bloqueo y túnel**: el firewall local no frena el tráfico que entra por Cloudflare Tunnel; valorar reglas en Cloudflare WAF (ver §10 de `CLAUDE.md`).
 - **Rangos de Cloudflare e IP de administración** en `rules/allowlist.yaml` (siguen vacíos).
-- **Rendimiento de la escritura**: cada evento es una transacción SQLite; se medirá en las pruebas de carga antes de agrupar por lotes.
+- **Rendimiento de la escritura**: medido en `LoadTests` (runner Linux de 4 núcleos): ~4 000 eventos/s de extremo a extremo con una transacción por evento, memoria estable y BD acotada; basta para estas apps, por lo que no se agrupa por lotes. La lectura de un log IIS de 22 MB (300 000 líneas) tarda ~2 s con memoria plana. Una corrida sostenida del servicio real se lanza a mano con el workflow `Soak`.
 
 ## Revisión del sistema 2 (asesor)
 
