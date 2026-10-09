@@ -1,7 +1,13 @@
 # Despliegue de SecurityAgent (srv-copahue2)
 
-> Estado: scripts **escritos pero no ejecutados en Windows**. El criterio de salida de la Fase 7 ("probados en una VM de prueba")
-> queda pendiente. Probar siempre primero con `-WhatIf`, luego en una VM, y recién después en el servidor (Fase 8).
+> Estado: los scripts se **ejecutan de extremo a extremo en un Windows Server 2025 limpio** en cada cambio (workflow
+> `Windows integration`, job `windows-installer`, script `deploy/ci/Test-InstallFlow.ps1`): instalación real, cuenta virtual,
+> ACL, firewall, API, alertas reales, integridad, CLI y desinstalación. Eso **no sustituye** la prueba en srv-copahue2
+> (Fase 8): allí hay IIS, SQL Server, Sysmon, Cloudflare y otras apps que el runner de CI no tiene. Probar siempre primero con
+> `-WhatIf`, luego en una VM, y recién después en el servidor.
+>
+> `Test-InstallFlow.ps1` instala y desinstala de verdad, crea cuentas, servicios y tareas de prueba: **solo en una VM descartable
+> o en el runner de CI, nunca en el servidor**.
 
 ## 1. Publicar
 ```powershell
@@ -18,15 +24,30 @@ Copiar `appsettings.Production.example.json` a `appsettings.Production.json`, co
 .\Install-SecurityAgent.ps1 -PublishDir .\publish -ConfigFile .\appsettings.Production.json `
     -SqlLogDir 'C:\Program Files\Microsoft SQL Server\MSSQL16.MSSQLSERVER\MSSQL\Log' -AdvisorAddress 192.168.X.X -WhatIf
 ```
-Quitar `-WhatIf` para aplicar. El script: crea la carpeta, copia archivos, crea el servicio con cuenta virtual
+Quitar `-WhatIf` para aplicar (el script usa `ConfirmImpact=High`: en una sesión no interactiva hay que añadir `-Confirm:$false`).
+El script: crea la carpeta, copia archivos, registra la fuente `SecurityAgent` en el registro de eventos de Windows (la cuenta del
+servicio no puede crearla y sin ella se perderían sus logs), crea el servicio con cuenta virtual
 `NT SERVICE\SecurityAgent`, aplica ACL (el servicio solo **lee** binarios/reglas/config; solo escribe en `data\` y `logs\`),
-concede lectura sobre las fuentes, genera el manifiesto de integridad y arranca el servicio.
+concede lectura sobre las fuentes (incluido el grupo *Event Log Readers* para los logs Security y System), genera el manifiesto
+de integridad y arranca el servicio.
+
+Los .ps1 llevan BOM UTF-8 a propósito: Windows PowerShell 5.1 lee como ANSI los que no lo tienen y rompe los acentos
+(`ScriptEncodingTests` lo vigila).
 
 ## 4. Verificar integridad en cualquier momento
 ```powershell
 D:\Apps\SecurityAgent\SecurityAgent.Worker.exe --verify-manifest      # código de salida 0 = íntegro, 2 = violado
 ```
 Tras una actualización legítima hay que regenerar el manifiesto (`--make-manifest`); el instalador ya lo hace.
+
+## 4b. Diagnóstico
+```powershell
+D:\Apps\SecurityAgent\SecurityAgent.Worker.exe --stats                  # eventos por fuente, alertas por regla, bloqueos, cursores
+Get-WinEvent -FilterHashtable @{ LogName='Application'; ProviderName='SecurityAgent' } -MaxEvents 20
+```
+`GET /api/v1/status` incluye `problems`: fuentes que el agente no puede leer (canal de Event Log inexistente o sin permiso, carpeta
+vigilada que no existe, etc.). Una fuente ilegible nunca falla en silencio: aparece ahí, en el Event Log de Windows y el
+`SecurityAdvisor` lo menciona al verificar el latido.
 
 ## 5. Desbloquear una IP (rollback, principio 3)
 ```powershell
