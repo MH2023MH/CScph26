@@ -252,16 +252,16 @@ Cada fase tiene un **tipo**, un **criterio de salida** verificable y sus **depen
 | 12 | Endurecimiento del sistema 2: pruebas de inyección de prompts con logs hostiles simulados, evaluación de calidad, verificación de latido | Autónoma | Un conjunto de logs hostiles no consigue que el modelo ignore sus reglas ni invoque algo fuera de la lista de consultas; evaluación de respuestas por encima del umbral acordado | 11 |
 | 13 (opcional) | Resúmenes proactivos diarios/semanales; dashboard local de solo lectura; evaluar Wazuh si crece la infraestructura | Opcional | A definir si se decide hacerlo | 8, 11 |
 
-### Estado actual (2026-10-08)
+### Estado actual (2026-10-09)
 
 | Fase | Estado | Qué falta |
 |---|---|---|
 | 0 | Decisiones cerradas (servicio, carpeta, lista blanca provisional, canal, alcance) | Lista blanca definitiva (IPs de administración, Cloudflare), destinatarios |
 | 1 | **En curso — compuerta** (guía y script en `docs/linea-base/` y `deploy/baseline/`) | Ejecutar el inventario y CIS-CAT/Policy Analyzer en el servidor; informe de brechas revisado |
 | 2–6 | Hechas y probadas (CI en verde) | — |
-| 7 | Código hecho y probado; **scripts de despliegue sin probar en Windows** | VM de prueba para `deploy/`; destino de logs externos; decisión de privilegios para bloquear |
+| 7 | Código hecho y probado; **scripts de `deploy/` ejecutados de extremo a extremo en Windows Server 2025 (CI `Windows integration`)**: instalación real, cuenta virtual, ACL, firewall, API, alertas reales, integridad, CLI y desinstalación | Destino de logs externos; decisión de privilegios para bloquear; repetir la prueba en srv-copahue2 (Fase 8) |
 | 8 | **Pendiente — compuerta** | Servidor, credenciales SMTP/Teams, Sysmon, ventana de instalación |
-| 9 | Hecha en código y pruebas; validación real depende de la Fase 8 | Ventanas de deploy, ubicación de respaldos, IDs de Defender con datos reales |
+| 9 | Hecha en código y pruebas; validación real depende de la Fase 8. En Windows real (CI) ya se comprobó el XML de 4625/4720/4732/4698/4697/7045 y Defender 5000/5001 | Ventanas de deploy, ubicación de respaldos, resto de IDs de Defender, Sysmon, IIS y SQL reales |
 | 10 | **Pendiente — compuerta** (nunca automática) | Observación, informe de falsos positivos, aprobación por regla (`--set-mode`) |
 | 11–12 | Hechas y probadas contra la API real con un modelo simulado | Equipo y modelo reales; ejecutar `--eval` con el modelo y fijar el umbral de calidad |
 
@@ -305,4 +305,4 @@ Cada fase tiene un **tipo**, un **criterio de salida** verificable y sus **depen
 - [ ] **Registro de la IP real tras Cloudflare Tunnel (SEC-007):** configurar en IIS el campo personalizado `CF-Connecting-IP`; sin él las reglas de IIS ven la IP local del túnel y no pueden atribuir ni bloquear al atacante. Además, el bloqueo en Windows Firewall no frena tráfico que entra por el túnel: valorar reglas en Cloudflare WAF.
 - [ ] **Privilegios para bloquear (antes de cualquier `enforce`):** la cuenta virtual de mínimos privilegios no puede crear reglas de firewall. Decidir entre un ayudante privilegiado mínimo o una cuenta con permisos de firewall (ver `deploy/README.md`).
 - [ ] **Datos de contacto de escalamiento** para `docs/planes/respuesta-a-incidentes.md` (nombres y teléfonos).
-- [ ] **Confirmar con datos reales (Fase 8):** IDs de eventos de Defender de SEC-008 (1116, 1119, 5001, 5010, 5012), configuración de Sysmon (depende de su versión) y que `auditpol` reporta correctamente la auditoría de 4625.
+- [ ] **Confirmar con datos reales (Fase 8):** IDs de eventos de Defender de SEC-008 (1116, 1119, 5010, 5012; **5001 ya confirmado** en Windows Server 2025 al desactivar la protección en tiempo real; el runner de CI no detecta EICAR), configuración de Sysmon (depende de su versión; el canal ausente se informa en `problems`) y que `auditpol` reporta correctamente la auditoría de 4625 en srv-copahue2. Pruebas reales del CI: 4625, 4720, 4732, 4698, 4697 y 7045 generan los eventos esperados y el servicio los lee con la cuenta virtual.
