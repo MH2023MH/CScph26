@@ -78,4 +78,5 @@ jobs:
         run: dotnet publish src/SecurityAgent.Worker -c Release -r win-x64 --self-contained false -o publish
       - name: Prueba del instalador y del servicio
         shell: powershell
-        run: ./deploy/ci/Test-InstallFlow.ps1 -PublishDir "$PWD\publish"
+        # 40 s de carga sostenida en cada ejecución (humo); el workflow manual "Soak" la repite durante minutos.
+        run: ./deploy/ci/Test-InstallFlow.ps1 -PublishDir "$PWD\publish" -SoakSeconds 40
