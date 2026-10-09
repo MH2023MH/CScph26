@@ -444,3 +444,55 @@ public class EventXmlHardeningTests
         Assert.Null(SecurityAgent.Collectors.EventLog.EventLogXmlParser.RecordIdOf(xxe));
     }
 }
+
+public sealed class BatchTransactionTests : IDisposable
+{
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "cscph26-" + Guid.NewGuid().ToString("N"));
+    private string Db => Path.Combine(_dir, "agent.db");
+
+    private static SecurityEvent Ev(string id) => new(id, DateTimeOffset.UtcNow, "iis", "http.request", Severity.Info);
+
+    [Fact]
+    public void A_batch_confirms_events_and_cursor_together_and_nesting_confirms_only_at_the_outermost_scope()
+    {
+        using var writer = new SqliteStateStore(new StateStoreOptions { DatabasePath = Db });
+        using var reader = new SqliteStateStore(new StateStoreOptions { DatabasePath = Db });      // otra conexión: solo ve lo confirmado
+
+        var outer = writer.BeginBatch();
+        writer.AddEvent(Ev("e1"));
+        writer.SetCursor("tail:x", 42);
+        using (writer.BeginBatch()) { writer.AddEvent(Ev("e2")); }                                  // el interior no confirma
+        Assert.Null(reader.GetEvent("e1"));
+        Assert.Null(reader.GetCursor("tail:x"));
+        Assert.NotNull(writer.GetEvent("e2"));                                                       // la propia conexión sí ve lo suyo
+
+        outer.Dispose();
+        outer.Dispose();                                                                             // liberar dos veces no hace nada
+        Assert.NotNull(reader.GetEvent("e1"));
+        Assert.NotNull(reader.GetEvent("e2"));
+        Assert.Equal(42, reader.GetCursor("tail:x"));
+    }
+
+    [Fact]
+    public void Writes_outside_a_batch_still_commit_immediately_and_maintenance_works_inside_one()
+    {
+        using var writer = new SqliteStateStore(new StateStoreOptions { DatabasePath = Db, MaxEvents = 10 });
+        using var reader = new SqliteStateStore(new StateStoreOptions { DatabasePath = Db });
+        writer.AddEvent(Ev("solo"));
+        Assert.NotNull(reader.GetEvent("solo"));
+
+        using (writer.BeginBatch())
+        {
+            for (var i = 0; i < 50; i++) writer.AddEvent(Ev("b" + i));
+            writer.Purge();                                                                          // no revienta con una transacción abierta
+        }
+        Assert.True(writer.EventCount <= 10);
+        Assert.Equal(writer.EventCount, reader.EventCount);
+    }
+
+    public void Dispose()
+    {
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        try { Directory.Delete(_dir, true); } catch { }
+    }
+}

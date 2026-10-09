@@ -50,11 +50,15 @@ public sealed class LoadTests(ITestOutputHelper output) : IDisposable
         var t0 = DateTimeOffset.UtcNow.AddHours(-1);
         const int n = 30_000;
         var sw = Stopwatch.StartNew();
-        for (var i = 0; i < n; i++)
+        for (var start = 0; start < n; start += 500)
         {
-            var hostile = i % 10 == 0;
-            await pipeline.ProcessAsync(Http(i, $"203.0.{113 + i % 7}.{1 + i % 200}", t0.AddMilliseconds(i * 20),
-                hostile ? "/a/../../windows/win.ini?id=1' or 1=1--" : "/products/" + i % 500));
+            using var batch = store.BeginBatch();      // como el servicio real: una transacción por lote de un collector
+            for (var i = start; i < Math.Min(n, start + 500); i++)
+            {
+                var hostile = i % 10 == 0;
+                await pipeline.ProcessAsync(Http(i, $"203.0.{113 + i % 7}.{1 + i % 200}", t0.AddMilliseconds(i * 20),
+                    hostile ? "/a/../../windows/win.ini?id=1' or 1=1--" : "/products/" + i % 500));
+            }
         }
         sw.Stop();
         var rate = n / sw.Elapsed.TotalSeconds;
@@ -131,6 +135,7 @@ public sealed class LoadTests(ITestOutputHelper output) : IDisposable
         var lastPurge = sw.Elapsed;
         while (sw.Elapsed < TimeSpan.FromSeconds(seconds))
         {
+            using (store.BeginBatch())
             for (var k = 0; k < 500; k++, i++)
                 await pipeline.ProcessAsync(Http(i, $"203.0.{113 + (int)(i % 5)}.{1 + (int)(i % 250)}", t.AddMilliseconds(i * 5),
                     i % 8 == 0 ? "/x/../../etc/passwd?a=1" : "/p/" + i % 300));

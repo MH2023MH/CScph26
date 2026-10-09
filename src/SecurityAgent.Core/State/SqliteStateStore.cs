@@ -22,6 +22,9 @@ public sealed class SqliteStateStore : IStateStore, IDisposable
         // auto_vacuum debe fijarse antes de crear tablas: permite devolver espacio tras purgar.
         Exec("PRAGMA auto_vacuum = INCREMENTAL;");
         Exec("PRAGMA journal_mode = WAL;");
+        // En WAL, NORMAL no hace fsync en cada confirmación: ante un corte de energía puede perderse lo último escrito, pero la base
+        // nunca se corrompe. Los eventos se vuelven a leer desde los cursores (se confirman juntos) y es lo que permite sostener la carga.
+        Exec("PRAGMA synchronous = NORMAL;");
         Exec("""
             CREATE TABLE IF NOT EXISTS events(
               id TEXT PRIMARY KEY, ts INTEGER NOT NULL, source TEXT NOT NULL, type TEXT NOT NULL,
@@ -47,6 +50,38 @@ public sealed class SqliteStateStore : IStateStore, IDisposable
     }
 
     private long Now => _time.GetUtcNow().ToUnixTimeMilliseconds();
+
+    private int _batchDepth;
+
+    public IDisposable BeginBatch()
+    {
+        lock (_gate)
+        {
+            if (_batchDepth == 0) Exec("BEGIN");
+            _batchDepth++;
+        }
+        return new BatchScope(this);
+    }
+
+    private void EndBatch()
+    {
+        lock (_gate)
+        {
+            if (--_batchDepth > 0) return;
+            try { Exec("COMMIT"); }
+            catch
+            {
+                try { Exec("ROLLBACK"); } catch { /* la conexión ya no tiene transacción abierta */ }
+                throw;
+            }
+        }
+    }
+
+    private sealed class BatchScope(SqliteStateStore store) : IDisposable
+    {
+        private int _done;
+        public void Dispose() { if (Interlocked.Exchange(ref _done, 1) == 0) store.EndBatch(); }
+    }
 
     private void Exec(string sql, Action<SqliteCommand>? bind = null)
     {
@@ -418,9 +453,9 @@ public sealed class SqliteStateStore : IStateStore, IDisposable
                     ORDER BY ts ASC
                     LIMIT MAX(1,(SELECT COUNT(*) FROM events WHERE source = (SELECT source FROM events GROUP BY source ORDER BY COUNT(*) DESC LIMIT 1))/10))";
                 events += c.ExecuteNonQuery();
-                Exec("PRAGMA incremental_vacuum;");
+                if (_batchDepth == 0) Exec("PRAGMA incremental_vacuum;");
             }
-            Exec("PRAGMA incremental_vacuum;");
+            if (_batchDepth == 0) Exec("PRAGMA incremental_vacuum;");
             return new PurgeResult(events, blocks);
         }
     }

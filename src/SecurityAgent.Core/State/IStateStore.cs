@@ -25,6 +25,14 @@ public sealed record PurgeResult(int EventsDeleted, int BlocksDeleted);
 
 public interface IStateStore
 {
+    /// <summary>
+    /// Agrupa las escrituras hasta que se libere el objeto devuelto en UNA transacción (confirmación única). Cada escritura suelta
+    /// es su propia transacción, y en un disco real son decenas de milisegundos por evento: la corrida sostenida en Windows
+    /// mostró ~200 eventos/s sin agrupar. Los cursores van en la misma transacción que los eventos, así que un corte los pierde
+    /// juntos y el collector vuelve a leerlos (entrega al menos una vez). Se admite anidar.
+    /// </summary>
+    IDisposable BeginBatch() => NoBatch.Instance;
+
     void AddEvent(SecurityEvent ev);
     SecurityEvent? GetEvent(string id);
     IReadOnlyList<SecurityEvent> QueryEvents(DateTimeOffset? since = null, string? source = null, string? ip = null, int limit = 100);
@@ -56,4 +64,10 @@ public interface IStateStore
 
     /// <summary>Aplica retención, tope de eventos, tope de tamaño y limpia bloqueos expirados.</summary>
     PurgeResult Purge();
+}
+
+internal sealed class NoBatch : IDisposable
+{
+    public static readonly NoBatch Instance = new();
+    public void Dispose() { }
 }
