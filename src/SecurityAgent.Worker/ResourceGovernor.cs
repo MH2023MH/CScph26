@@ -11,22 +11,25 @@ namespace SecurityAgent.Worker;
 /// </summary>
 public static class ResourceGovernor
 {
-    public static void Apply(ResourceLimitsOptions o, ILogger log)
+    /// <returns>null si los límites quedaron aplicados (o no hacía falta); si no, el motivo del fallo.</returns>
+    public static string? Apply(ResourceLimitsOptions o, ILogger log)
     {
-        if (!o.Enabled) return;
+        if (!o.Enabled) return null;
+        string? error = null;
         try
         {
             if (o.LowPriority) Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.BelowNormal;
         }
-        catch (Exception e) { log.LogWarning(e, "No se pudo bajar la prioridad del proceso"); }
+        catch (Exception e) { log.LogWarning(e, "No se pudo bajar la prioridad del proceso"); error = "prioridad: " + e.Message; }
 
-        if (!OperatingSystem.IsWindows()) return;
+        if (!OperatingSystem.IsWindows()) return error;
         try
         {
             WindowsJobObject.Apply(o.MaxMemoryMb, o.MaxCpuPercent);
             log.LogInformation("Límites aplicados: memoria {Mem} MB, CPU {Cpu}%", o.MaxMemoryMb, o.MaxCpuPercent);
         }
-        catch (Exception e) { log.LogWarning(e, "No se pudieron aplicar los límites con Job Object"); }
+        catch (Exception e) { log.LogWarning(e, "No se pudieron aplicar los límites con Job Object"); error = "job object: " + e.Message; }
+        return error;
     }
 }
 

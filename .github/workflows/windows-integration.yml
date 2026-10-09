@@ -1,0 +1,59 @@
+name: Windows integration
+
+# Pruebas contra un Windows REAL (máquinas efímeras de GitHub, con permisos de administrador):
+#  - windows-tests: toda la batería, incluidas las pruebas que usan netsh, Job Object, Event Log, eventos reales y Defender.
+#  - windows-installer: ejecuta de verdad deploy/Install-SecurityAgent.ps1 y comprueba servicio, ACL, API, detección e integridad.
+on:
+  push:
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'rules/**'
+      - 'deploy/**'
+      - 'CScph26.sln'
+      - '.github/workflows/windows-integration.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'rules/**'
+      - 'deploy/**'
+      - 'CScph26.sln'
+      - '.github/workflows/windows-integration.yml'
+  workflow_dispatch:
+
+jobs:
+  windows-tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - run: dotnet build CScph26.sln -c Release
+      - name: Pruebas (todas, con detalle de las de integración)
+        run: dotnet test CScph26.sln -c Release --no-build --logger "console;verbosity=detailed" --logger "trx;LogFileName=windows-tests.trx"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-test-results
+          path: '**/TestResults/*.trx'
+
+  windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Comprobar el entorno de ejecución de .NET 8
+        shell: powershell
+        run: |
+          dotnet --list-runtimes
+          $ok = (dotnet --list-runtimes) -match 'Microsoft.AspNetCore.App 8\.'
+          if (-not $ok) {
+            Invoke-WebRequest https://dot.net/v1/dotnet-install.ps1 -OutFile dotnet-install.ps1
+            ./dotnet-install.ps1 -Channel 8.0 -Runtime aspnetcore -InstallDir 'C:\Program Files\dotnet'
+          }
+      - name: Publicar
+        run: dotnet publish src/SecurityAgent.Worker -c Release -r win-x64 --self-contained false -o publish
+      - name: Prueba del instalador y del servicio
+        shell: powershell
+        run: ./deploy/ci/Test-InstallFlow.ps1 -PublishDir "$PWD\publish"

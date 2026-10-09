@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using System.Diagnostics;
 using System.Net;
 using SecurityAgent.Core.Integrity;
 using SecurityAgent.Core.Rules;
@@ -45,6 +46,8 @@ public static class Cli
             output.WriteLine(hadRecord ? $"Bloqueo de {ip} retirado del firewall y del registro." : $"No había registro de bloqueo para {ip}; se retiró cualquier regla residual del firewall.");
             return 0;
         }
+        if (args.Contains("--selftest-limits"))
+            return SelfTestLimits(args, output);
         if (args.Contains("--set-mode"))
         {
             // Aprobación humana explícita de enforce (principio 1). Es una de las dos llaves; la otra es 'modo: enforce' en el YAML de la regla.
@@ -78,5 +81,44 @@ public static class Cli
             return 0;
         }
         return null;
+    }
+
+    /// <summary>
+    /// Prueba, en un proceso aparte y desechable, que los topes de memoria y CPU se aplican de verdad:
+    /// <c>--selftest-limits &lt;MB&gt; &lt;CPU%&gt;</c>. Pensado para CI y para la VM de pruebas; no se usa en producción.
+    /// </summary>
+    private static int SelfTestLimits(string[] args, TextWriter output)
+    {
+        var i = Array.IndexOf(args, "--selftest-limits");
+        var mem = i + 1 < args.Length && int.TryParse(args[i + 1], out var m) ? m : 0;
+        var cpu = i + 2 < args.Length && int.TryParse(args[i + 2], out var c) ? c : 0;
+        var error = ResourceGovernor.Apply(new ResourceLimitsOptions { Enabled = true, LowPriority = false, MaxMemoryMb = mem, MaxCpuPercent = cpu },
+            Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+        output.WriteLine(error is null ? "APPLIED" : "FAILED: " + error);
+        if (error != null) return 2;
+
+        if (mem > 0)
+        {
+            try
+            {
+                var block = new byte[(mem + 256) * 1024L * 1024L];
+                for (long k = 0; k < block.Length; k += 4096) block[k] = 1;    // forzar el uso real de la memoria
+                output.WriteLine("ALLOC_ALLOWED");
+            }
+            catch (OutOfMemoryException) { output.WriteLine("ALLOC_BLOCKED"); }
+        }
+        if (cpu > 0)
+        {
+            var threads = Environment.ProcessorCount;
+            var sw = Stopwatch.StartNew();
+            var start = Process.GetCurrentProcess().TotalProcessorTime;
+            var workers = Enumerable.Range(0, threads).Select(_ => new Thread(() => { while (sw.ElapsedMilliseconds < 4000) { } })).ToList();
+            workers.ForEach(t => t.Start());
+            workers.ForEach(t => t.Join());
+            var used = (Process.GetCurrentProcess().TotalProcessorTime - start).TotalSeconds;
+            var fraction = used / (sw.Elapsed.TotalSeconds * threads);       // 1.0 = toda la CPU de la máquina
+            output.WriteLine($"CPU_FRACTION {fraction:0.000} (tope pedido {cpu}%, procesadores {threads})");
+        }
+        return 0;
     }
 }
