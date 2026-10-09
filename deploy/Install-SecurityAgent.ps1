@@ -79,6 +79,13 @@ if ($ConfigFile -ne '') {
     }
 }
 
+# ---- 2b. Fuente del registro de eventos de Windows (la cuenta del servicio no tiene permiso para crearla) ----
+Invoke-Step "Registrar la fuente '$ServiceName' en el registro de eventos de Windows (Application)" {
+    if (-not [System.Diagnostics.EventLog]::SourceExists($ServiceName)) {
+        New-EventLog -LogName Application -Source $ServiceName
+    }
+}
+
 # ---- 3. Servicio con cuenta virtual ----
 if (-not $existing) {
     Invoke-Step "Crear el servicio $ServiceName" {

@@ -128,6 +128,7 @@ function Invoke-Flow {
     Check (Test-Path (Join-Path $install 'rules\SEC-001.yaml')) 'las reglas se copiaron junto al binario'
     Check (Test-Path (Join-Path $install 'integrity.manifest.json')) 'existe el manifiesto de integridad'
     Check (Test-Path (Join-Path $install 'data')) 'existe la carpeta data'
+    Check ([System.Diagnostics.EventLog]::SourceExists($ServiceName)) "se registró la fuente '$ServiceName' del registro de eventos de Windows"
 
     # ------------------------------------------------------------------ ACL y permisos
     Step 'ACL y permisos'
@@ -170,6 +171,7 @@ function Invoke-Flow {
     Check ((Call-Api '/api/v1/status' 'otro-token').Code -eq 401) 'token incorrecto: 401'
     Check ((Call-Api '/api/v1/status' $token 'POST').Code -in 404, 405) 'POST no está permitido'
     Check ((Call-Api '/api/v1/events/no-existe').Code -eq 404) 'ID inexistente: 404'
+    Check (Wait-Until { @(Get-WinEvent -FilterHashtable @{ LogName = 'Application'; ProviderName = $ServiceName } -ErrorAction SilentlyContinue).Count -ge 1 } 20) 'el servicio escribe en el registro de eventos de Windows (mensaje de arranque)'
 
     # ------------------------------------------------------------------ Detección real con la cuenta de servicio
     Step 'Detección de eventos reales'
@@ -179,9 +181,9 @@ function Invoke-Flow {
         & sc.exe create CScph26CiSvc binPath= 'C:\Windows\System32\cmd.exe' start= demand | Out-Host
         Set-Content (Join-Path $apps 'shop\web.config') '<configuration><!-- cambio --></configuration>'
 
-        Check (Wait-Until { (Alerts-For 'SEC-003').Count -ge 1 } 90) 'SEC-003: alerta por cuenta creada / agregada a Administradores (lee el log Security como cuenta virtual)'
-        Check (Wait-Until { (Alerts-For 'SEC-004').Count -ge 1 } 90) 'SEC-004: alerta por servicio nuevo (log System)'
-        Check (Wait-Until { (Alerts-For 'SEC-006').Count -ge 1 } 60) 'SEC-006: alerta por cambio de web.config (FileSystemWatcher)'
+        Check (Wait-Until { @(Alerts-For 'SEC-003').Count -ge 1 } 90) 'SEC-003: alerta por cuenta creada / agregada a Administradores (lee el log Security como cuenta virtual)'
+        Check (Wait-Until { @(Alerts-For 'SEC-004').Count -ge 1 } 90) 'SEC-004: alerta por servicio nuevo (log System)'
+        Check (Wait-Until { @(Alerts-For 'SEC-006').Count -ge 1 } 60) 'SEC-006: alerta por cambio de web.config (FileSystemWatcher)'
 
         $a = (Alerts-For 'SEC-003') | Select-Object -First 1
         if ($a) {
@@ -239,6 +241,7 @@ function Invoke-Flow {
     Check (Wait-Until { $null -eq (Get-Service $ServiceName -ErrorAction SilentlyContinue) } 30) 'el servicio fue eliminado'
     Check ($null -eq (Get-NetFirewallRule -DisplayName "CScph26 StatusApi ($ServiceName)" -ErrorAction SilentlyContinue)) 'se retiró la regla de firewall de la API'
     Check (@(Get-LocalGroupMember -SID 'S-1-5-32-573' -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*\$ServiceName" }).Count -eq 0) 'se retiró la cuenta de Event Log Readers'
+    Check (-not [System.Diagnostics.EventLog]::SourceExists($ServiceName)) 'se retiró la fuente del registro de eventos'
     Check (Test-Path (Join-Path $install 'data\agent.db')) 'la base de datos se conserva (sin -RemoveFiles)'
 }
 

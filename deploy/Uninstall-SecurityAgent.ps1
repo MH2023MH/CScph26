@@ -29,6 +29,10 @@ if ($PSCmdlet.ShouldProcess('Windows Firewall', 'Eliminar reglas CScph26 (bloque
     Get-NetFirewallRule -DisplayName "CScph26 StatusApi ($ServiceName)" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 }
 
+if ($PSCmdlet.ShouldProcess('Registro de eventos', "Quitar la fuente $ServiceName")) {
+    if ([System.Diagnostics.EventLog]::SourceExists($ServiceName)) { [System.Diagnostics.EventLog]::DeleteEventSource($ServiceName) }
+}
+
 if ($PSCmdlet.ShouldProcess('Event Log Readers', "Quitar $account")) {
     & net.exe localgroup 'Event Log Readers' $account /delete 2>&1 | Out-Null
 }
