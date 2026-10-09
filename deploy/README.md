@@ -46,6 +46,11 @@ D:\Apps\SecurityAgent\SecurityAgent.Worker.exe --verify-manifest      # código 
 ```
 Tras una actualización legítima hay que regenerar el manifiesto (`--make-manifest`); el instalador ya lo hace.
 
+## 4a. Carga sostenida
+`Test-InstallFlow.ps1 -SoakSeconds 600` (en una VM descartable o con el workflow manual `Soak`) instala el servicio, le inyecta tráfico IIS
+hostil (~1 700 líneas/s), eventos de seguridad reales y cambios de archivos, y comprueba: sin reinicios, RAM < 512 MB, CPU < 25 %, latido
+< 30 s, la API responde, `agent.db` acotada y el agente se pone al día. El CI de Windows lo ejecuta 40 s en cada cambio.
+
 ## 4b. Diagnóstico
 ```powershell
 D:\Apps\SecurityAgent\SecurityAgent.Worker.exe --stats                  # eventos por fuente, alertas por regla, bloqueos, cursores

@@ -27,7 +27,19 @@ prueba que lo reproduce en `tests/CScph26.Tests/SecurityReviewTests.cs`. El sist
   del puerto solo para la IP del asesor; falta decidir el certificado (CA interna o autofirmado con fijación).
 - **Bloqueo y túnel**: el firewall local no frena el tráfico que entra por Cloudflare Tunnel; valorar reglas en Cloudflare WAF (ver §10 de `CLAUDE.md`).
 - **Rangos de Cloudflare e IP de administración** en `rules/allowlist.yaml` (siguen vacíos).
-- **Rendimiento de la escritura**: medido en `LoadTests` (runner Linux de 4 núcleos): ~4 000 eventos/s de extremo a extremo con una transacción por evento, memoria estable y BD acotada; basta para estas apps, por lo que no se agrupa por lotes. La lectura de un log IIS de 22 MB (300 000 líneas) tarda ~2 s con memoria plana. Una corrida sostenida del servicio real se lanza a mano con el workflow `Soak`.
+- **Rendimiento de la escritura (corregido tras medirlo en Windows real):** la corrida sostenida del servicio instalado en Windows Server
+  (`Test-InstallFlow.ps1 -SoakSeconds`, ~1 700 líneas IIS/s hostiles al 10 % más eventos de seguridad y cambios de archivos) mostró que con una
+  transacción SQLite por evento el agente solo ingería ~200 eventos/s (en Linux, con disco rápido, parecía 4 000): tras 40 s de carga había leído
+  743 KB de 5,1 MB y el latido llegó a 32 s de retraso. Se corrigió agrupando las escrituras de cada lote de un collector (eventos, alertas y
+  cursor) en una transacción, `synchronous=NORMAL` en WAL y dando el latido mientras se procesa. Resultado en el mismo runner: 71 000 eventos
+  ingeridos durante la carga, al día en cuanto termina, latido máximo 1,6 s, RAM máxima 117 MB (tope 512), CPU máxima 2,4 % (tope 25 %),
+  `agent.db` + WAL de 20 MB, API sin fallos, SEC-007 detecta el tráfico hostil y sin reinicios. En Linux (`LoadTests`): ~49 000 eventos/s.
+  Riesgo aceptado: un corte de energía puede perder las últimas confirmaciones de SQLite (la base no se corrompe y los collectors releen desde
+  su cursor, que se confirma en la misma transacción). El workflow manual `Soak` repite la corrida durante minutos (úsese con 600 s o más antes
+  de desplegar cambios del núcleo; solo aparece para ejecutar cuando el archivo esté en la rama principal).
+- **Reconciliación del firewall tras un corte:** si un corte de energía pierde un registro de bloqueo recién confirmado, la regla de
+  Windows Firewall quedaría sin entrada en `agent.db`. Pendiente (antes de `enforce`): al arrancar, listar las reglas `CScph26-block-*` y
+  retirar las que no tengan bloqueo vigente.
 
 ## Revisión del sistema 2 (asesor)
 
