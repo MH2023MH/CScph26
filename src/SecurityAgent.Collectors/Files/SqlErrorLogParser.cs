@@ -16,7 +16,9 @@ public sealed partial class SqlErrorLogParser(TimeZoneInfo? serverTimeZone = nul
     [GeneratedRegex(@"^Login failed for user '(?<user>[^']*)'")]
     private static partial Regex FailedRx();
 
-    [GeneratedRegex(@"\[CLIENT:\s*(?<ip>[^\]]+)\]")]
+    // El nombre de usuario lo controla el atacante y puede contener "[CLIENT: x]". La IP real es SIEMPRE el último
+    // campo que escribe SQL Server, así que se busca anclada al final y de derecha a izquierda, sin admitir '[' en la IP.
+    [GeneratedRegex(@"\[CLIENT:\s*(?<ip>[^\]\[]+)\]\s*$", RegexOptions.RightToLeft)]
     private static partial Regex ClientRx();
 
     public SecurityEvent? Parse(string line, string idPrefix)

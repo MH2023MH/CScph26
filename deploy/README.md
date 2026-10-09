@@ -19,6 +19,11 @@ Requiere el runtime **.NET 8 (ASP.NET Core Runtime)** instalado en el servidor.
 Copiar `appsettings.Production.example.json` a `appsettings.Production.json`, completar los secretos y guardarlo **fuera de git**
 (está en `.gitignore`). Secretos: token de la API, SMTP, webhook de Teams, clave HMAC del manifiesto, token del destino de logs.
 
+- Token de la API: aleatorio de **32 o más caracteres** (p. ej. `[Convert]::ToBase64String((1..32 | % { Get-Random -Max 256 }))`). Con el valor de ejemplo o uno corto la API no arranca (el monitor sí).
+- `StatusApi:AllowedClients` **reemplaza** la lista por defecto; cada entrada debe ser una IP o CIDR válido.
+- `Integrity:HmacKey`: sin ella (o con la de ejemplo) el manifiesto no está firmado y `problems` lo advierte: quien pueda escribir en la carpeta podría regenerarlo.
+- `BlockLimits` (opcional): topes de seguridad del responder en `enforce` (por defecto 20 bloqueos nuevos por minuto y 500 activos).
+
 ## 3. Instalar
 ```powershell
 .\Install-SecurityAgent.ps1 -PublishDir .\publish -ConfigFile .\appsettings.Production.json `
@@ -28,8 +33,9 @@ Quitar `-WhatIf` para aplicar (el script usa `ConfirmImpact=High`: en una sesió
 El script: crea la carpeta, copia archivos, registra la fuente `SecurityAgent` en el registro de eventos de Windows (la cuenta del
 servicio no puede crearla y sin ella se perderían sus logs), crea el servicio con cuenta virtual
 `NT SERVICE\SecurityAgent`, aplica ACL (el servicio solo **lee** binarios/reglas/config; solo escribe en `data\` y `logs\`),
-concede lectura sobre las fuentes (incluido el grupo *Event Log Readers* para los logs Security y System), genera el manifiesto
-de integridad y arranca el servicio.
+concede lectura sobre las fuentes (incluido el grupo *Event Log Readers* para los logs Security y System; sobre `D:\Apps` solo
+**listar carpetas**, no leer los archivos de las demás apps), genera el manifiesto de integridad y arranca el servicio. Las ACL se aplican
+**antes** de copiar nada, para que la configuración con secretos nunca exista con permisos heredados.
 
 Los .ps1 llevan BOM UTF-8 a propósito: Windows PowerShell 5.1 lee como ANSI los que no lo tienen y rompe los acentos
 (`ScriptEncodingTests` lo vigila).

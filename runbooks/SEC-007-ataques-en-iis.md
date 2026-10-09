@@ -7,6 +7,7 @@ Una IP generó peticiones con firmas de ataque (recorrido de directorios `../`, 
 1. En la alerta: IP y peticiones citadas. ¿Alguna obtuvo respuesta 200/500 en vez de 404? Un 200 en `/.env` o un 500 tras una inyección es grave.
 2. ¿La IP es un monitor legítimo o un cliente de prueba? ¿Una app propia tiene una ruta que contiene la palabra (falso positivo)? Ajustar con `excepto` (Fase 10).
 3. **Detrás de Cloudflare Tunnel** la IP del log es la del túnel (127.0.0.1). Hay que registrar `CF-Connecting-IP` como campo personalizado de IIS para atribuir al cliente real; sin él estas reglas no pueden identificar al atacante (y el bloqueo del firewall local no frena tráfico que entra por el túnel: usar las reglas de Cloudflare WAF).
+   Solo se acepta `CF-Connecting-IP` cuando la conexión viene del propio servidor (loopback o una dirección propia, que es donde corre `cloudflared`); si un equipo de la red interna llega a IIS por fuera del túnel, la IP atribuida es la suya, no la de la cabecera (que podría ser falsa).
 
 ## Contención
 - `enforce`: bloqueo temporal de la IP en Windows Firewall (solo útil si la IP conecta directamente al servidor).

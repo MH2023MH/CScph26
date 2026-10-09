@@ -2,6 +2,7 @@ using SecurityAgent.Core.Alerts;
 using SecurityAgent.Core.Events;
 using SecurityAgent.Core.Rules;
 using SecurityAgent.Core.State;
+using SecurityAgent.Core.Text;
 using SecurityAgent.Responders.Notifications;
 
 namespace SecurityAgent.Responders;
@@ -11,7 +12,8 @@ public sealed class SecurityPipeline(IStateStore store, RuleEngine engine, Respo
 {
     public async Task<IReadOnlyList<Alert>> ProcessAsync(SecurityEvent ev, CancellationToken ct = default)
     {
-        store.AddEvent(ev);
+        // Se guarda una copia sin secretos (consultas de URL, líneas de comandos); las reglas ven el evento original.
+        store.AddEvent(SecretScrubber.Scrub(ev));
         var alerts = new List<Alert>();
         foreach (var hit in engine.Process(ev))
         {

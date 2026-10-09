@@ -64,6 +64,9 @@ public sealed class RuleEngine
         return hits;
     }
 
+    /// <summary>Claves (regla, grupo) con una ventana abierta. Acotado por <see cref="MaxTrackedKeys"/>.</summary>
+    public int TrackedKeys { get { lock (_gate) return _windows.Count; } }
+
     private void Compact(DateTimeOffset now)
     {
         var windowOf = _rules.ToDictionary(r => r.Id, r => r.Window);
@@ -73,5 +76,12 @@ public sealed class RuleEngine
             while (q.Count > 0 && now - q.Peek().Ts > windowOf[k.RuleId]) q.Dequeue();
             if (q.Count == 0) _windows.Remove(k);
         }
+        if (_windows.Count <= MaxTrackedKeys) return;
+
+        // Todas siguen vigentes (p. ej. un atacante inventa claves distintas: nombres de usuario, IP falsas). Tope duro: se descartan
+        // las de menos actividad hasta quedar al 90 %, de modo que esta limpieza ocurre cada ~2 000 claves y no en cada evento.
+        var evict = _windows.Count - MaxTrackedKeys * 9 / 10;
+        foreach (var kv in _windows.OrderBy(kv => kv.Value.Count).ThenBy(kv => kv.Value.Peek().Ts).Take(evict).ToList())
+            _windows.Remove(kv.Key);
     }
 }

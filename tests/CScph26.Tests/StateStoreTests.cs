@@ -52,9 +52,12 @@ public sealed class StateStoreTests : IDisposable
         _time.Advance(TimeSpan.FromHours(2));
         Assert.Single(s.ListActiveBlocks());
         Assert.Single(s.ListExpiredBlocks());
-        Assert.Equal(0, s.Purge().BlocksDeleted);   // vencido hace <24 h: se conserva para retirarlo del firewall
+        Assert.Equal(0, s.Purge().BlocksDeleted);   // vencido: se conserva hasta que el responder confirme que retiró la regla del firewall
         _time.Advance(TimeSpan.FromDays(2));
-        Assert.Equal(2, s.Purge().BlocksDeleted);
+        Assert.Equal(0, s.Purge().BlocksDeleted);   // ni siquiera con el tiempo: borrarlo antes dejaría una regla huérfana y permanente
+        Assert.Equal(2, s.ListExpiredBlocks().Count);
+        Assert.True(s.RemoveBlock("203.0.113.50"));
+        Assert.True(s.RemoveBlock("203.0.113.51"));
         s.AddBlock(new("203.0.113.51", "SEC-001", "fuerza bruta", _time.GetUtcNow(), _time.GetUtcNow().AddHours(1)));
         Assert.True(s.RemoveBlock("203.0.113.51"));
         Assert.False(s.RemoveBlock("203.0.113.51"));

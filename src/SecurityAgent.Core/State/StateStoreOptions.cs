@@ -11,6 +11,12 @@ public sealed class StateStoreOptions
     /// <summary>Máximo de eventos conservados (se borran los más antiguos).</summary>
     public int MaxEvents { get; set; } = 500_000;
 
+    /// <summary>
+    /// Máximo de eventos que puede conservar UNA fuente. Impide que una ráfaga de peticiones IIS (fácil de provocar desde fuera)
+    /// expulse la evidencia de Security, Sysmon o archivos antes de enviarla o revisarla.
+    /// </summary>
+    public int MaxEventsPerSource { get; set; } = 250_000;
+
     /// <summary>Máximo de alertas conservadas.</summary>
     public int MaxAlerts { get; set; } = 50_000;
 

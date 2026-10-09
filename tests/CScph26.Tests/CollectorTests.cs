@@ -306,6 +306,11 @@ public sealed class FileChangeCollectorTests : StoreTestBase
     [InlineData("/apps/shop/logs/app.dll", false)]
     [InlineData("/apps/shop/data/agent.db", false)]
     [InlineData("/apps/shop/obj/x.dll", false)]
+    [InlineData("/apps/shop/data/web.config", true)]           // IIS lo respeta en cualquier carpeta: no es ruido
+    [InlineData("/apps/shop/App_Data/shell.aspx", true)]
+    [InlineData("/apps/shop/uploads/x.ashx", true)]
+    [InlineData("/apps/shop/logs/appsettings.Production.json", true)]
+    [InlineData("/apps/shop/node_modules/web.config", false)]
     public void ShouldTrack_filters_noise(string path, bool expected)
     {
         using var c = new FileChangeCollector(new FileChangeCollectorOptions());

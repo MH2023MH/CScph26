@@ -1,3 +1,4 @@
+using SecurityAgent.Core.State;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Builder;
@@ -22,9 +23,13 @@ builder.WebHost.UseUrls(options.StatusApi.Listen);
 
 var app = builder.Build();
 
-// La API de estado es opcional para la protección: sin token no se publica (falla cerrada) pero el monitor sigue funcionando.
-if (string.IsNullOrWhiteSpace(options.StatusApi.Token))
-    app.Logger.LogError("StatusApi:Token vacío: la API de estado queda DESHABILITADA. El monitor sigue protegiendo.");
+// La API de estado es opcional para la protección: con una configuración inválida (token ausente o débil, clientes mal escritos)
+// no se publica (falla cerrada), se informa en el registro y en 'problems', pero el monitor sigue funcionando (principio 11).
+if (options.StatusApi.Validate() is { } statusApiProblem)
+{
+    app.Logger.LogError("StatusApi deshabilitada: {Problem}. El monitor sigue protegiendo.", statusApiProblem);
+    app.Services.GetRequiredService<AgentHealth>().Report("status-api", "la API de estado está deshabilitada: " + statusApiProblem);
+}
 else
     app.MapStatusApi(app.Services.GetRequiredService<StatusService>(), options.StatusApi);
 

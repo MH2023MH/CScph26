@@ -20,7 +20,7 @@ namespace CScph26.Tests;
 /// <summary>API de estado REAL (servidor en memoria) sobre un State Store sembrado: el advisor la consulta como en producción.</summary>
 internal sealed class AdvisorHarness : IAsyncDisposable
 {
-    public const string Token = "advisor-test-token";
+    public const string Token = "advisor-test-token-0123456789abcdef0123";
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "cscph26-adv-" + Guid.NewGuid().ToString("N"));
     public SqliteStateStore Store { get; }
     public WebApplication App { get; private set; } = null!;

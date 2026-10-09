@@ -19,6 +19,13 @@ public sealed class IntegrityMonitor(AgentOptions options, SystemAlertPublisher 
         ManifestSha256 = report.ManifestSha256;
         health.Integrity = report.Ok ? "ok" : "violated";
 
+        // Sin firma (o con la clave de ejemplo) quien pueda escribir en la carpeta puede regenerar el manifiesto y la integridad no prueba nada.
+        var key = options.Integrity.HmacKey;
+        health.Report("integrity-unsigned",
+            key == "" ? "el manifiesto de integridad no está firmado: falta SecurityAgent:Integrity:HmacKey"
+            : key.Contains("CAMBIAR", StringComparison.OrdinalIgnoreCase) ? "la clave HMAC de integridad es el valor de ejemplo; genere una aleatoria"
+            : null);
+
         var fp = report.Fingerprint();
         if (fp != _lastFingerprint)
         {

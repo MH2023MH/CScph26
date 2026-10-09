@@ -24,11 +24,24 @@ public static class EventLogXmlParser
         _ => "eventlog." + channel.ToLowerInvariant().Replace(' ', '_').Replace('/', '.')
     };
 
+    private static readonly System.Xml.XmlReaderSettings Safe = new()
+    {
+        DtdProcessing = System.Xml.DtdProcessing.Prohibit,     // los eventos de Windows no llevan DTD: nada de entidades externas ni expansión
+        XmlResolver = null,
+        MaxCharactersInDocument = 1_000_000,
+    };
+
+    private static XDocument Load(string xml)
+    {
+        using var reader = System.Xml.XmlReader.Create(new StringReader(xml), Safe);
+        return XDocument.Load(reader);
+    }
+
     /// <summary>Devuelve null si el XML no es un evento válido (se ignora, nunca lanza por datos hostiles).</summary>
     public static SecurityEvent? Parse(string xml, string? channelHint = null)
     {
         XDocument doc;
-        try { doc = XDocument.Parse(xml); }
+        try { doc = Load(xml); }
         catch (System.Xml.XmlException) { return null; }
 
         var sys = doc.Root?.Element(Ns + "System");
@@ -123,7 +136,7 @@ public static class EventLogXmlParser
     {
         try
         {
-            var v = XDocument.Parse(xml).Root?.Element(Ns + "System")?.Element(Ns + "EventRecordID")?.Value;
+            var v = Load(xml).Root?.Element(Ns + "System")?.Element(Ns + "EventRecordID")?.Value;
             return long.TryParse(v, out var id) ? id : null;
         }
         catch (System.Xml.XmlException) { return null; }

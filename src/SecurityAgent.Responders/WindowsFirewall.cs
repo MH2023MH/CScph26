@@ -50,7 +50,7 @@ public sealed class WindowsFirewall : IFirewall
 
     private static (int Code, string Output) RunNetsh(string[] args)
     {
-        var psi = new ProcessStartInfo("netsh") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        var psi = new ProcessStartInfo(SecurityAgent.Core.SystemTools.Path("netsh.exe")) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
         foreach (var a in args) psi.ArgumentList.Add(a);
         using var p = Process.Start(psi) ?? throw new InvalidOperationException("No se pudo iniciar netsh");
         var stdout = p.StandardOutput.ReadToEndAsync();

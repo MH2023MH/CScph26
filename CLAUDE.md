@@ -200,6 +200,7 @@ Planes transversales a redactar:
 | El modelo alucina o afirma un estado falso | Respuestas basadas en consultas estructuradas, con cita de IDs; "no hay información" ante la duda (principio 13) |
 | Modelo local consume demasiados recursos | Ejecutarlo en equipo propio dedicado, fuera de srv-copahue2; el sistema 1 no depende de él |
 | La API de estado amplía la superficie de ataque del sistema 1 | Solo lectura, token, escucha solo en red interna, sin datos sensibles (sin secretos ni contenido de archivos), registro de accesos |
+| Fallos explotables en el propio agente (IP falsificada en logs, ACL, API, retención) | Revisión de seguridad independiente del 2026-10-09: 13 hallazgos corregidos con pruebas que los reproducen; pendientes y alcance en `docs/seguridad/revision-independiente-2026-10-09.md` |
 | Dependencia excesiva de la IA para enterarse de problemas | Las alertas críticas salen siempre por el canal del sistema 1 (correo/Teams); la IA es consulta, no vigilancia primaria |
 
 ---
@@ -303,6 +304,7 @@ Cada fase tiene un **tipo**, un **criterio de salida** verificable y sus **depen
 - [ ] **Sistema 2:** ¿qué datos nunca deben llegar al modelo (usuarios, IPs internas, rutas)? Define el saneado de la API de estado.
 - [ ] **Respaldos a vigilar (SEC-009):** ¿cómo y dónde se respaldan SQL Server y `D:\Apps`? Hace falta carpeta, patrón de archivo y antigüedad máxima de cada respaldo (`Audits:Backups:Targets`). Mientras no se configure, la auditoría informa `sin_configurar`.
 - [ ] **Registro de la IP real tras Cloudflare Tunnel (SEC-007):** configurar en IIS el campo personalizado `CF-Connecting-IP`; sin él las reglas de IIS ven la IP local del túnel y no pueden atribuir ni bloquear al atacante. Además, el bloqueo en Windows Firewall no frena tráfico que entra por el túnel: valorar reglas en Cloudflare WAF.
+- [ ] **TLS en la API de estado:** el token viaja por HTTP en la red interna (mitigado con `AllowedClients` y firewall solo para el asesor). Decidir certificado (CA interna o autofirmado con fijación) antes de exponerla fuera de la VM/equipo del asesor.
 - [ ] **Privilegios para bloquear (antes de cualquier `enforce`):** la cuenta virtual de mínimos privilegios no puede crear reglas de firewall. Decidir entre un ayudante privilegiado mínimo o una cuenta con permisos de firewall (ver `deploy/README.md`).
 - [ ] **Datos de contacto de escalamiento** para `docs/planes/respuesta-a-incidentes.md` (nombres y teléfonos).
 - [ ] **Confirmar con datos reales (Fase 8):** IDs de eventos de Defender de SEC-008 (1116, 1119, 5010, 5012; **5001 ya confirmado** en Windows Server 2025 al desactivar la protección en tiempo real; el runner de CI no detecta EICAR), configuración de Sysmon (depende de su versión; el canal ausente se informa en `problems`) y que `auditpol` reporta correctamente la auditoría de 4625 en srv-copahue2. Pruebas reales del CI: 4625, 4720, 4732, 4698, 4697 y 7045 generan los eventos esperados y el servicio los lee con la cuenta virtual.

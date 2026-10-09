@@ -143,6 +143,9 @@ function Invoke-Flow {
     Check (($dataAcl | Where-Object { ($_.FileSystemRights -band $W::Modify) -eq $W::Modify }).Count -gt 0) 'la cuenta del servicio puede modificar data\'
     $cfgAcl = @((Get-Acl (Join-Path $install 'appsettings.Production.json')).Access)
     Check (@($cfgAcl | Where-Object { $_.IdentityReference.Value -match 'Everyone|BUILTIN\\Users' }).Count -eq 0) 'el archivo de secretos no es legible por Users'
+    $appsAcl = @((Get-Acl $apps).Access | Where-Object { $_.IdentityReference.Value -eq $account })
+    Check ($appsAcl.Count -gt 0) 'la cuenta del servicio puede listar las carpetas de las apps (SEC-006)'
+    Check (@($appsAcl | Where-Object { ($_.InheritanceFlags -band [System.Security.AccessControl.InheritanceFlags]::ObjectInherit) -ne 0 }).Count -eq 0) 'la cuenta del servicio NO hereda lectura sobre los ARCHIVOS de las apps (secretos de otras apps)'
     Check (@(Get-LocalGroupMember -SID 'S-1-5-32-573' -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*\$ServiceName" }).Count -eq 1) 'la cuenta pertenece a Event Log Readers'
     $fw = Get-NetFirewallRule -DisplayName "CScph26 StatusApi ($ServiceName)" -ErrorAction SilentlyContinue
     Check ($null -ne $fw) 'existe la regla de firewall del puerto de la API'

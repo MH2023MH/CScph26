@@ -370,19 +370,22 @@ public sealed class SqliteStateStore : IStateStore, IDisposable
     {
         lock (_gate)
         {
-            int events = 0, blocks;
-            using (var c = _db.CreateCommand())
-            {
-                // Un bloqueo vencido se conserva 24 h para que el responder lo retire del firewall (SweepExpired).
-                c.CommandText = "DELETE FROM blocks WHERE expires<=$cut";
-                c.Parameters.AddWithValue("$cut", _time.GetUtcNow().AddHours(-24).ToUnixTimeMilliseconds());
-                blocks = c.ExecuteNonQuery();
-            }
+            int events = 0, blocks = 0;
+            // Los bloqueos vencidos NO se purgan por antigüedad: solo se borran cuando el responder confirma que retiró la regla del
+            // firewall (SweepExpired / --unblock-ip). Borrarlos antes dejaría una regla de firewall huérfana y permanente.
             // 1) retención por antigüedad
             using (var c = _db.CreateCommand())
             {
                 c.CommandText = "DELETE FROM events WHERE ts<$cut";
                 c.Parameters.AddWithValue("$cut", _time.GetUtcNow().Subtract(_opt.EventRetention).ToUnixTimeMilliseconds());
+                events += c.ExecuteNonQuery();
+            }
+            // 1b) cuota por fuente: ninguna fuente puede ocupar todo el espacio
+            using (var c = _db.CreateCommand())
+            {
+                c.CommandText = @"DELETE FROM events WHERE id IN (
+                    SELECT id FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY source ORDER BY ts DESC, id DESC) AS rn FROM events) WHERE rn > $max)";
+                c.Parameters.AddWithValue("$max", _opt.MaxEventsPerSource);
                 events += c.ExecuteNonQuery();
             }
             // 2) tope de cantidad
@@ -405,11 +408,15 @@ public sealed class SqliteStateStore : IStateStore, IDisposable
                 c.Parameters.AddWithValue("$max", _opt.MaxAlerts);
                 c.ExecuteNonQuery();
             }
-            // 3) tope de tamaño: borrar lotes de los más antiguos hasta caber
+            // 3) tope de tamaño: borrar lotes de los más antiguos de la fuente más grande hasta caber (no la evidencia de las demás)
             while (UsedBytes > _opt.MaxDatabaseBytes && Scalar("SELECT COUNT(*) FROM events") > 0)
             {
                 using var c = _db.CreateCommand();
-                c.CommandText = "DELETE FROM events WHERE id IN (SELECT id FROM events ORDER BY ts ASC LIMIT MAX(1,(SELECT COUNT(*) FROM events)/10))";
+                c.CommandText = @"DELETE FROM events WHERE id IN (
+                    SELECT id FROM events
+                    WHERE source = (SELECT source FROM events GROUP BY source ORDER BY COUNT(*) DESC LIMIT 1)
+                    ORDER BY ts ASC
+                    LIMIT MAX(1,(SELECT COUNT(*) FROM events WHERE source = (SELECT source FROM events GROUP BY source ORDER BY COUNT(*) DESC LIMIT 1))/10))";
                 events += c.ExecuteNonQuery();
                 Exec("PRAGMA incremental_vacuum;");
             }

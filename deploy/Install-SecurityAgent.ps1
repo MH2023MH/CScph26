@@ -49,6 +49,22 @@ function Assert-ExitCode {
     if ($LASTEXITCODE -ne 0) { throw "$What falló (código $LASTEXITCODE)" }
 }
 
+# ACL de la carpeta de instalación (principios 4 y 8). Se aplica ANTES de copiar archivos para que nada (en especial la
+# configuración con secretos) exista nunca con permisos heredados de la carpeta madre, y de nuevo al final como reafirmación.
+function Set-InstallAcl {
+    & icacls.exe $InstallDir /inheritance:r | Out-Null; Assert-ExitCode 'icacls inheritance'
+    & icacls.exe $InstallDir /grant:r 'NT AUTHORITY\SYSTEM:(OI)(CI)F' 'BUILTIN\Administrators:(OI)(CI)F' "${account}:(OI)(CI)RX" | Out-Null
+    Assert-ExitCode 'icacls base'
+    foreach ($sub in @('data', 'logs')) {
+        & icacls.exe (Join-Path $InstallDir $sub) /grant:r "${account}:(OI)(CI)M" | Out-Null; Assert-ExitCode "icacls $sub"
+    }
+    $cfg = Join-Path $InstallDir 'appsettings.Production.json'
+    if (Test-Path $cfg) {
+        & icacls.exe $cfg /inheritance:r /grant:r 'NT AUTHORITY\SYSTEM:F' 'BUILTIN\Administrators:F' "${account}:R" | Out-Null
+        Assert-ExitCode 'icacls config'
+    }
+}
+
 # ---- Validaciones ----
 if (-not (Test-Path (Join-Path $PublishDir $exeName))) { throw "No se encontró $exeName en $PublishDir" }
 if ($ConfigFile -ne '' -and -not (Test-Path $ConfigFile)) { throw "No existe el archivo de configuración: $ConfigFile" }
@@ -69,6 +85,7 @@ if ($existing -and $existing.Status -ne 'Stopped') {
 Invoke-Step "Crear carpetas en $InstallDir" {
     New-Item -ItemType Directory -Force -Path $InstallDir, (Join-Path $InstallDir 'data'), (Join-Path $InstallDir 'logs') | Out-Null
 }
+Invoke-Step "Aplicar ACL estrictas en $InstallDir antes de copiar nada" { Set-InstallAcl }
 Invoke-Step "Copiar binarios y reglas desde $PublishDir (data\ y logs\ no se tocan)" {
     Get-ChildItem -Path $PublishDir -Force | Where-Object { $_.Name -notin @('data', 'logs') } |
         Copy-Item -Destination $InstallDir -Recurse -Force
@@ -100,29 +117,21 @@ Invoke-Step "Configurar la cuenta virtual $account y la recuperación automátic
     & sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/30000/restart/60000 | Out-Null; Assert-ExitCode 'sc failure'
 }
 
-# ---- 4. ACL (principio 4 y 8) ----
-Invoke-Step "Aplicar ACL estrictas en $InstallDir" {
-    & icacls.exe $InstallDir /inheritance:r | Out-Null; Assert-ExitCode 'icacls inheritance'
-    & icacls.exe $InstallDir /grant:r 'NT AUTHORITY\SYSTEM:(OI)(CI)F' 'BUILTIN\Administrators:(OI)(CI)F' "${account}:(OI)(CI)RX" | Out-Null
-    Assert-ExitCode 'icacls base'
-    foreach ($sub in @('data', 'logs')) {
-        & icacls.exe (Join-Path $InstallDir $sub) /grant:r "${account}:(OI)(CI)M" | Out-Null; Assert-ExitCode "icacls $sub"
-    }
-    $cfg = Join-Path $InstallDir 'appsettings.Production.json'
-    if (Test-Path $cfg) {
-        & icacls.exe $cfg /inheritance:r /grant:r 'NT AUTHORITY\SYSTEM:F' 'BUILTIN\Administrators:F' "${account}:R" | Out-Null
-        Assert-ExitCode 'icacls config'
-    }
-}
+# ---- 4. ACL (principio 4 y 8): reafirmar tras copiar ----
+Invoke-Step "Reafirmar las ACL estrictas en $InstallDir" { Set-InstallAcl }
 
 # ---- 5. Permisos de LECTURA sobre las fuentes (nunca escritura) ----
 Invoke-Step "Permitir a $account leer el Event Log (grupo Event Log Readers)" {
     & net.exe localgroup 'Event Log Readers' $account /add 2>&1 | Out-Null   # si ya es miembro, net devuelve error 2: se ignora
 }
-foreach ($src in @(@{ Path = $IisLogRoot; Why = 'logs de IIS' }, @{ Path = $SqlLogDir; Why = 'ERRORLOG de SQL Server' }, @{ Path = $AppsRoot; Why = 'archivos de las apps (SEC-006)' })) {
+foreach ($src in @(@{ Path = $IisLogRoot; Why = 'logs de IIS'; Acl = '(OI)(CI)RX' },
+                   @{ Path = $SqlLogDir; Why = 'ERRORLOG de SQL Server'; Acl = '(OI)(CI)RX' },
+                   # SEC-006 solo necesita LISTAR carpetas para recibir avisos de cambio: (CI) sin (OI) no concede lectura de los archivos
+                   # (appsettings.Production.json de las demás apps) si el servicio llegara a comprometerse.
+                   @{ Path = $AppsRoot; Why = 'carpetas de las apps (SEC-006, solo listar)'; Acl = '(CI)RX' })) {
     if ($src.Path -ne '' -and (Test-Path $src.Path)) {
         Invoke-Step "Conceder lectura sobre $($src.Why): $($src.Path)" {
-            & icacls.exe $src.Path /grant "${account}:(OI)(CI)RX" | Out-Null; Assert-ExitCode "icacls $($src.Why)"
+            & icacls.exe $src.Path /grant:r "${account}:$($src.Acl)" | Out-Null; Assert-ExitCode "icacls $($src.Why)"
         }
     } else {
         Write-Warning "Se omite $($src.Why): ruta no indicada o inexistente ($($src.Path))"

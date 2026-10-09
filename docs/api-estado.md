@@ -8,9 +8,11 @@
 | Control | Comportamiento |
 |---|---|
 | Solo lectura | Solo existen rutas `GET`. Cualquier `POST/PUT/PATCH/DELETE` devuelve error (probado). |
-| Token | `Authorization: Bearer <token>`. Sin token configurado la API **no arranca**. Comparación en tiempo constante. 401 si falta o es inválido (también para rutas inexistentes). |
-| Red interna | Solo clientes en `AllowedClients` (CIDR/IP); otros reciben 403 aunque el token sea válido. Kestrel escucha por defecto solo en `127.0.0.1`; `Listen` se ajusta a la IP interna. |
-| Registro de accesos | Cada petición, y cada rechazo, se registra (IP, método, ruta, estado). Nunca se registra el token. |
+| Token | `Authorization: Bearer <token>`. Mínimo 32 caracteres aleatorios; sin token, con el valor de ejemplo (`CAMBIAR…`) o demasiado corto la API **no arranca** (el monitor sí: el motivo aparece en `problems` y en el Event Log). Se comparan resúmenes SHA-256 en tiempo constante (no se filtra la longitud). 401 si falta o es inválido (también para rutas inexistentes). |
+| Red interna | Solo clientes en `AllowedClients` (CIDR/IP); otros reciben 403 aunque el token sea válido. Si se configura, **reemplaza** la lista por defecto (`127.0.0.1`, `::1`, `192.168.0.0/16`). Una entrada mal escrita deshabilita la API (no tumba el monitor). Kestrel escucha por defecto solo en `127.0.0.1`; `Listen` se ajusta a la IP interna. |
+| Registro de accesos | Cada petición, y cada rechazo, se registra (IP, método, ruta, estado). Método y ruta los elige quien llama, por lo que se limpian de caracteres de control; los rechazos se limitan a 20 por minuto (el resto se cuenta). Nunca se registra el token. |
+| Secretos | Los eventos se guardan sin secretos evidentes en `target` y `detail` (contraseñas, tokens y claves en consultas de URL o líneas de comandos, credenciales en URL): se sustituyen por `***`. Las reglas se evalúan antes, sobre el original. |
+| Transporte | **HTTP sin cifrar**: el token viaja en claro por la red interna. Mitigación actual: `AllowedClients` + regla de firewall solo para la IP del asesor. Pendiente decidir TLS (certificado interno). |
 | Datos externos | Actor, objeto, mensaje y motivo se **sanean** (sin controles, saltos de línea ni caracteres invisibles/bidi; longitud acotada). La IP se valida como IP. |
 | Sin secretos | No expone contenido de archivos, secretos ni la base de datos. |
 

@@ -2,6 +2,7 @@ using SecurityAgent.Collectors.Audits;
 using SecurityAgent.Collectors.EventLog;
 using SecurityAgent.Collectors.Files;
 using SecurityAgent.Core.State;
+using SecurityAgent.Responders;
 using SecurityAgent.Responders.LogShipping;
 using SecurityAgent.Responders.Notifications;
 using SecurityAgent.StatusApi;
@@ -71,6 +72,7 @@ public sealed class AgentOptions
     public IntegrityOptions Integrity { get; set; } = new();
     public LogShippingOptions LogShipping { get; set; } = new();
     public ResourceLimitsOptions Limits { get; set; } = new();
+    public BlockLimits BlockLimits { get; set; } = new();
     public AuditsOptions Audits { get; set; } = new();
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromSeconds(5);
     public TimeSpan MaintenanceInterval { get; set; } = TimeSpan.FromMinutes(10);

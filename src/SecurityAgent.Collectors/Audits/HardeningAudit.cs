@@ -83,7 +83,7 @@ public sealed class WindowsHardeningProbe : IHardeningProbe
         const string name = "Auditoría de fallos de inicio de sesión (4625)";
         try
         {
-            var psi = new ProcessStartInfo("auditpol.exe") { RedirectStandardOutput = true, UseShellExecute = false, CreateNoWindow = true };
+            var psi = new ProcessStartInfo(SecurityAgent.Core.SystemTools.Path("auditpol.exe")) { RedirectStandardOutput = true, UseShellExecute = false, CreateNoWindow = true };
             foreach (var a in new[] { "/get", "/subcategory:{0CCE9215-69AE-11D9-BED3-505054503030}", "/r" }) psi.ArgumentList.Add(a);
             using var p = Process.Start(psi);
             if (p is null || !p.WaitForExit(10_000)) return new(name, null, "auditpol no respondió");

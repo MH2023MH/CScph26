@@ -13,7 +13,15 @@ public sealed class FileChangeCollectorOptions
     /// <summary>Carpetas que se ignoran. Vacío = valores por defecto.</summary>
     public List<string> ExcludeDirs { get; set; } = new();
 
-    public static readonly string[] DefaultInclude = { "web.config", "appsettings*.json", "*.dll", "*.exe", "*.config" };
+    public static readonly string[] DefaultInclude = { "web.config", "appsettings*.json", "*.dll", "*.exe", "*.config",
+        "*.aspx", "*.ashx", "*.asmx", "*.asp", "*.cshtml", "*.php", "*.jsp" };     // scripts servibles: así se plantan los webshells
+    /// <summary>
+    /// Archivos que IIS ejecuta o interpreta donde estén: se vigilan aunque estén en una carpeta "ruidosa" (data, logs, temp, App_Data),
+    /// porque justamente son los lugares escribibles por la aplicación donde un atacante planta un web.config o un webshell.
+    /// </summary>
+    public static readonly string[] AlwaysTrack = { "web.config", "appsettings*.json", "*.aspx", "*.ashx", "*.asmx", "*.asp", "*.cshtml", "*.php", "*.jsp" };
+    /// <summary>Carpetas de compilación o control de versiones: ruido puro, se ignoran siempre.</summary>
+    public static readonly string[] AlwaysIgnoreDirs = { ".git", "obj", "node_modules" };
     public static readonly string[] DefaultExcludeDirs = { "logs", "log", "temp", "tmp", "data", ".git", "obj", "node_modules", "App_Data" };
     public IReadOnlyList<string> EffectiveInclude => Include.Count > 0 ? Include : DefaultInclude.ToList();
     public IReadOnlyList<string> EffectiveExcludeDirs => ExcludeDirs.Count > 0 ? ExcludeDirs : DefaultExcludeDirs.ToList();
@@ -85,8 +93,10 @@ public sealed class FileChangeCollector : ICollector, IDisposable
                                                   || fullPath.StartsWith(r.TrimEnd('/', '\\') + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
         if (root != null) path = fullPath[root.TrimEnd('/', '\\').Length..];
         var dirs = (Path.GetDirectoryName(path) ?? "").Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        if (dirs.Any(d => _opt.EffectiveExcludeDirs.Contains(d, StringComparer.OrdinalIgnoreCase))) return false;
+        if (dirs.Any(d => FileChangeCollectorOptions.AlwaysIgnoreDirs.Contains(d, StringComparer.OrdinalIgnoreCase))) return false;
         var name = Path.GetFileName(fullPath);
+        if (FileChangeCollectorOptions.AlwaysTrack.Any(p => Matches(p, name))) return true;
+        if (dirs.Any(d => _opt.EffectiveExcludeDirs.Contains(d, StringComparer.OrdinalIgnoreCase))) return false;
         return _opt.EffectiveInclude.Any(p => Matches(p, name));
     }
 

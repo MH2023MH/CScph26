@@ -17,7 +17,7 @@ namespace CScph26.Tests;
 
 public sealed class StatusApiTests : IAsyncLifetime
 {
-    private const string Token = "token-de-prueba-123";
+    private const string Token = "token-de-prueba-123-0123456789abcdef";
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "cscph26-" + Guid.NewGuid().ToString("N"));
     private SqliteStateStore _store = null!;
     private WebApplication _app = null!;

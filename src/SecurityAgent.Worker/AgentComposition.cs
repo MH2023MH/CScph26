@@ -31,14 +31,14 @@ public static class AgentComposition
         s.AddSingleton<IStateStore>(sp => sp.GetRequiredService<SqliteStateStore>());
 
         // Falla cerrada: reglas o lista blanca inválidas impiden arrancar (mejor no iniciar que iniciar sin protección ni exclusiones).
-        s.AddSingleton(_ => Allowlist.LoadFile(Path.Combine(o.ResolveRulesDir(), "allowlist.yaml")));
+        s.AddSingleton(_ => Allowlist.LoadFile(Path.Combine(o.ResolveRulesDir(), "allowlist.yaml"), HostAddresses.Shared.IsProtected));
         s.AddSingleton<IReadOnlyList<Rule>>(_ => RuleLoader.LoadDirectory(o.ResolveRulesDir()));
         s.AddSingleton(_ => DeployWindows.LoadFile(Path.Combine(o.ResolveRulesDir(), "deploy-windows.yaml")));
         s.AddSingleton(sp => new RuleEngine(sp.GetRequiredService<IReadOnlyList<Rule>>(), sp.GetRequiredService<Allowlist>(), sp.GetRequiredService<DeployWindows>()));
 
         s.TryAddSingleton<IFirewall, WindowsFirewall>();
         s.AddSingleton(sp => new ResponseExecutor(sp.GetRequiredService<IStateStore>(), sp.GetRequiredService<IFirewall>(),
-            sp.GetRequiredService<Allowlist>(), sp.GetRequiredService<TimeProvider>()));
+            sp.GetRequiredService<Allowlist>(), sp.GetRequiredService<TimeProvider>(), o.BlockLimits, sp.GetRequiredService<AgentHealth>()));
 
         s.AddSingleton<HttpClient>();
         s.AddSingleton<IEnumerable<IAlertNotifier>>(sp =>

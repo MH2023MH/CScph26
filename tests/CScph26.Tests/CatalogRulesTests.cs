@@ -192,7 +192,7 @@ public class CatalogRulesTests
         var p = new IisLogParser();
         p.Parse("#Fields: date time c-ip cs-uri-stem CF-Connecting-IP", "x", 0);
         Assert.Equal("203.0.113.5", p.Parse("2026-10-08 07:00:00 127.0.0.1 /a 203.0.113.5", "x", 1)!.Ip);       // vía túnel local
-        Assert.Equal("203.0.113.5", p.Parse("2026-10-08 07:00:00 10.0.0.7 /a 203.0.113.5", "x", 2)!.Ip);       // red privada también cuenta como par local
+        Assert.Equal("10.0.0.7", p.Parse("2026-10-08 07:00:00 10.0.0.7 /a 203.0.113.5", "x", 2)!.Ip);         // un equipo de la red privada podría escribir la cabecera a mano: no se le cree
         Assert.Equal("198.51.100.9", p.Parse("2026-10-08 07:00:00 198.51.100.9 /a 203.0.113.5", "x", 3)!.Ip);  // par externo: la cabecera podría ser falsa
         Assert.Equal("127.0.0.1", p.Parse("2026-10-08 07:00:00 127.0.0.1 /a not-an-ip", "x", 4)!.Ip);
     }

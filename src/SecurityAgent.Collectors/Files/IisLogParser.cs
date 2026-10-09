@@ -4,7 +4,7 @@ using SecurityAgent.Core.Events;
 namespace SecurityAgent.Collectors.Files;
 
 /// <summary>Parser de logs W3C de IIS. Las columnas se toman de la directiva #Fields, así que tolera configuraciones distintas.</summary>
-public sealed class IisLogParser
+public sealed class IisLogParser(Func<System.Net.IPAddress, bool>? isTrustedPeer = null)
 {
     private string[]? _fields;
 
@@ -22,23 +22,21 @@ public sealed class IisLogParser
     }
 
     /// <summary>
-    /// Tras cloudflared/Cloudflare, c-ip es la dirección local del túnel y el cliente real viaja en la cabecera CF-Connecting-IP
-    /// (debe registrarse como campo personalizado en IIS). Solo se confía en ella cuando la conexión viene de loopback/red privada.
+    /// Tras cloudflared/Cloudflare, c-ip es la dirección del túnel y el cliente real viaja en la cabecera CF-Connecting-IP
+    /// (debe registrarse como campo personalizado en IIS). Solo se confía en ella cuando el par es el propio servidor
+    /// (loopback o una dirección propia): cloudflared corre en la misma máquina. Un equipo de la red interna, o cualquier otro
+    /// par, puede escribir esa cabecera a mano para acusar a una IP ajena, así que no se le cree.
     /// </summary>
-    public static string? ClientIp(string? cIp, string? cfConnectingIp)
+    public static string? ClientIp(string? cIp, string? cfConnectingIp, Func<System.Net.IPAddress, bool>? isTrustedPeer = null)
     {
         if (cIp is null || cfConnectingIp is null) return cIp;
-        if (!System.Net.IPAddress.TryParse(cIp, out var peer) || !IsLocalPeer(peer)) return cIp;
+        isTrustedPeer ??= DefaultTrustedPeer;
+        if (!System.Net.IPAddress.TryParse(cIp, out var peer) || !isTrustedPeer(peer)) return cIp;
         return System.Net.IPAddress.TryParse(cfConnectingIp.Trim(), out var real) ? real.ToString() : cIp;
     }
 
-    private static bool IsLocalPeer(System.Net.IPAddress a)
-    {
-        if (System.Net.IPAddress.IsLoopback(a)) return true;
-        if (a.IsIPv4MappedToIPv6) a = a.MapToIPv4();
-        var b = a.GetAddressBytes();
-        return b.Length == 4 && (b[0] == 10 || (b[0] == 172 && b[1] is >= 16 and <= 31) || (b[0] == 192 && b[1] == 168));
-    }
+    private static bool DefaultTrustedPeer(System.Net.IPAddress a) =>
+        System.Net.IPAddress.IsLoopback(a.IsIPv4MappedToIPv6 ? a.MapToIPv4() : a) || SecurityAgent.Core.Rules.HostAddresses.Shared.IsOwn(a);
 
     public void SetFields(string[]? fields) { if (fields != null) _fields = fields; }
 
@@ -68,6 +66,6 @@ public sealed class IisLogParser
         var target = stem is null ? null : query is null ? stem : stem + "?" + query;
         var detail = $"{F("cs-method") ?? "?"} {F("sc-status") ?? "?"} {F("cs(User-Agent)") ?? "-"}";
         return new SecurityEvent($"{idPrefix}-{offset}", ts.ToUniversalTime(), "iis", "http.request", Severity.Info,
-            F("cs-username"), ClientIp(F("c-ip"), F("CF-Connecting-IP")), target, detail);
+            F("cs-username"), ClientIp(F("c-ip"), F("CF-Connecting-IP"), isTrustedPeer), target, detail);
     }
 }
