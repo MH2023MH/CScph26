@@ -67,6 +67,7 @@ public sealed class ToolRegistry(StatusApiClient api, Redactor redactor)
                 var id = Str("id");
                 if (string.IsNullOrWhiteSpace(id)) return Invalid(call.Name, "falta el parámetro 'id'");
                 var r = await api.GetRuleAsync(id, ct);
+                if (r.Ok) r = r with { Value = redactor.Apply(r.Value!) };
                 return Build(call.Name, r, v => new[] { v.Id }.Concat(v.RecentAlerts.Select(a => a.Id)).Concat(v.RecentAlerts.SelectMany(a => a.EventIds)));
             }
             case "get_audit_summary":
@@ -80,7 +81,7 @@ public sealed class ToolRegistry(StatusApiClient api, Redactor redactor)
                 var id = Str("id");
                 if (string.IsNullOrWhiteSpace(id)) return Invalid(call.Name, "falta el parámetro 'id'");
                 var r = await api.GetEventAsync(id, ct);
-                if (r.Ok && r.Value!.Event is { } ev) r = r with { Value = r.Value with { Event = redactor.Apply(ev) } };
+                if (r.Ok) r = r with { Value = redactor.Apply(r.Value!) };
                 return Build(call.Name, r, v => v.Event is { } e ? new[] { e.Id }.Concat(e.Ip is null ? Array.Empty<string>() : new[] { e.Ip })
                                               : v.Alert is { } a ? new[] { a.Id, a.RuleId }.Concat(a.EventIds) : Array.Empty<string>());
             }

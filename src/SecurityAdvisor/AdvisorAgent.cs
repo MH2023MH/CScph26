@@ -93,7 +93,8 @@ public sealed class AdvisorAgent(ILanguageModel model, ToolRegistry tools, Advis
             text = null;
         }
 
-        return Finalize(question, text, called, results, evidence, violations);
+        var answer = Finalize(question, text, called, results, evidence, violations);
+        return answer with { Text = OutputSanitizer.Clean(answer.Text) };
     }
 
     private static AdvisorAnswer Finalize(string question, string? text, List<string> called, List<ToolResult> results,

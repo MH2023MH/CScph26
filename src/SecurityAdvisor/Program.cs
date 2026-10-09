@@ -22,7 +22,8 @@ var ollama = config.GetSection("Model").Get<OllamaOptions>() ?? new OllamaOption
 var redaction = config.GetSection("Redaction").Get<RedactionOptions>() ?? new RedactionOptions();
 var advisorOptions = config.GetSection("Advisor").Get<AdvisorOptions>() ?? new AdvisorOptions();
 
-using var apiHttp = new HttpClient();
+// Sin redirecciones: el token de la API de estado nunca debe seguir a otro destino.
+using var apiHttp = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });
 using var modelHttp = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
 var api = new StatusApiClient(apiHttp, baseUrl, token);
 var agent = new AdvisorAgent(new OllamaChatModel(modelHttp, ollama), new ToolRegistry(api, new Redactor(redaction)), advisorOptions);
